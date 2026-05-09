@@ -1,0 +1,80 @@
+{
+  "programmingLanguages": [
+    "JavaScript", "TypeScript", "Python", "Java", "C++", "C#", "Ruby", "Go", "Rust", "PHP",
+    "Swift", "Kotlin", "Scala", "R", "MATLAB", "Perl", "Shell", "Bash", "PowerShell",
+    "Objective-C", "Dart", "Elixir", "Haskell", "Lua", "SQL", "PL/SQL", "T-SQL"
+  ],
+  "webFrameworks": [
+    "React", "Angular", "Vue", "Next.js", "Nuxt.js", "Svelte", "Ember", "Backbone",
+    "Express", "Nest.js", "Koa", "Fastify", "Django", "Flask", "FastAPI", "Ruby on Rails",
+    "Spring Boot", "Laravel", "Symfony", "ASP.NET",  ".NET Core", "Blazor"
+  ],
+  "databases": [
+    "PostgreSQL", "MySQL", "MongoDB", "Redis", "Cassandra", "DynamoDB", "Oracle",
+    "MS SQL Server", "SQLite", "MariaDB", "CouchDB", "Neo4j", "Elasticsearch",
+    "Firebase", "Supabase", "PlanetScale"
+  ],
+  "cloudPlatforms": [
+    "AWS", "Azure", "Google Cloud", "GCP", "Heroku", "Digital Ocean", "Vercel",
+    "Netlify", "Cloudflare", "IBM Cloud", "Oracle Cloud"
+  ],
+  "devOps": [
+    "Docker", "Kubernetes", "Jenkins", "GitLab CI", "GitHub Actions", "CircleCI",
+    "Travis CI", "Terraform", "Ansible", "Chef", "Puppet", "Nagios", "Prometheus",
+    "Grafana", "ELK Stack", "Datadog"
+  ],
+  "mobile": [
+    "React Native", "Flutter", "iOS", "Android", "Xamarin", "Ionic", "Cordova",
+    "SwiftUI", "Jetpack Compose"
+  ],
+  "dataScience": [
+    "TensorFlow", "PyTorch", "Scikit-learn", "Pandas", "NumPy", "Matplotlib",
+    "Keras", "Jupyter", "Apache Spark", "Hadoop", "Tableau", "Power BI",
+    "Machine Learning", "Deep Learning", "NLP", "Computer Vision", "Data Analysis"
+  ],
+  "testingTools": [
+    "Jest", "Mocha", "Chai", "Cypress", "Selenium", "Puppeteer", "Playwright",
+    "JUnit", "TestNG", "PyTest", "RSpec", "Postman", "K6", "JMeter"
+  ],
+  "versionControl": [
+    "Git", "GitHub", "GitLab", "Bitbucket", "SVN", "Mercurial"
+  ],
+  "softSkills": [
+    "Leadership", "Communication", "Teamwork", "Problem Solving", "Critical Thinking",
+    "Time Management", "Adaptability", "Creativity", "Attention to Detail",
+    "Project Management", "Agile", "Scrum", "Stakeholder Management"
+  ],
+  "synonyms": {
+    "JS": "JavaScript",
+    "TS": "TypeScript",
+    "React.js": "React",
+    "ReactJS": "React",
+    "Vue.js": "Vue",
+    "VueJS": "Vue",
+    "Angular.js": "Angular",
+    "AngularJS": "Angular",
+    "Node": "Node.js",
+    "NodeJS": "Node.js",
+    "Postgres": "PostgreSQL",
+    "Mongo": "MongoDB",
+    "K8s": "Kubernetes",
+    "ML": "Machine Learning",
+    "DL": "Deep Learning",
+    "AI": "Artificial Intelligence",
+    "AWS Lambda": "AWS",
+    "EC2": "AWS",
+    "S3": "AWS",
+    "RDS": "AWS",
+    "Azure Functions": "Azure",
+    "GCP Functions": "Google Cloud",
+    "CI/CD": "DevOps",
+    "REST API": "RESTful API",
+    "GraphQL API": "GraphQL",
+    "TDD": "Test Driven Development",
+    "BDD": "Behavior Driven Development"
+  },
+  "certifications": [
+    "AWS Certified", "Azure Certified", "Google Cloud Certified", "PMP", "Scrum Master",
+    "CISSP", "CompTIA", "Oracle Certified", "Microsoft Certified", "Salesforce Certified"
+  ]
+}

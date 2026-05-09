@@ -1,0 +1,175 @@
+
+
+# name: CI/CD Pipeline
+
+# on:
+#   push:
+#     branches: [ main-v3 ]
+
+# jobs:
+#   build-and-deploy:
+#     runs-on: ubuntu-latest
+
+#     steps:
+#       - name: Checkout Code
+#         uses: actions/checkout@v3
+
+#       - name: Login to Docker Hub
+#         run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+
+#       - name: Set up Docker Buildx
+#         uses: docker/setup-buildx-action@v3
+
+#       # Build ATS
+#       # - name: Build and push ATS
+#       #   uses: docker/build-push-action@v5
+#       #   with:
+#       #     context: ./ats_service_be
+#       #     push: true
+#       #     tags: ${{ secrets.DOCKER_USERNAME }}/ats-service:latest
+#       #     cache-from: type=gha
+#       #     cache-to: type=gha,mode=max
+
+#       # Build Core
+#       - name: Build and push Core
+#         uses: docker/build-push-action@v5
+#         with:
+#           context: ./core
+#           push: true
+#           tags: ${{ secrets.DOCKER_USERNAME }}/core-service:latest
+#           cache-from: type=gha
+#           cache-to: type=gha,mode=max
+
+#       # # Build Resume
+#       # - name: Build and push Resume
+#       #   uses: docker/build-push-action@v5
+#       #   with:
+#       #     context: ./resume_be/server
+#       #     push: true
+#       #     tags: ${{ secrets.DOCKER_USERNAME }}/resume-service:latest
+#       #     cache-from: type=gha
+#       #     cache-to: type=gha,mode=max
+
+#       # # Build Interview
+#       # - name: Build and push Interview
+#       #   uses: docker/build-push-action@v5
+#       #   with:
+#       #     context: ./interview_service_be
+#       #     push: true
+#       #     tags: ${{ secrets.DOCKER_USERNAME }}/interview-service:latest
+#       #     cache-from: type=gha
+#       #     cache-to: type=gha,mode=max
+
+#       - name: Deploy to EC2 via SSH
+#         uses: appleboy/ssh-action@v1.0.0
+#         with:
+#           host: ${{ secrets.EC2_HOST }}
+#           username: ${{ secrets.EC2_USER }}
+#           key: ${{ secrets.EC2_SSH_KEY }}
+#           script: |
+#             # Clean up disk space aggressively
+#             # docker system prune -af || true
+#             # docker volume prune -f || true
+
+#             # Ensure the network exists
+#             docker network create HIRION-network || true
+
+#             docker pull ${{ secrets.DOCKER_USERNAME }}/ats-service:latest
+#             # docker pull ${{ secrets.DOCKER_USERNAME }}/core-service:latest
+#             # docker pull ${{ secrets.DOCKER_USERNAME }}/resume-service:latest
+#             # docker pull ${{ secrets.DOCKER_USERNAME }}/interview-service:latest
+
+#             docker stop ats || true && docker rm ats || true
+#             # docker stop core || true && docker rm core || true
+#             # docker stop resume || true && docker rm resume || true
+#             # docker stop interview || true && docker rm interview || true
+
+#             # Run ATS (OCR service)
+#             # Internal port 5001, mapped to host 5000 as per Apache /ocr/ proxy
+#             # docker run -d --name ats \
+#             #   -p 5000:5001 \
+#             #   ${{ secrets.DOCKER_USERNAME }}/ats-service:latest
+
+#             # Run Core (Main API)
+#             # Internal port 4000, mapped to host 4000 as per Apache /api/ proxy
+#             docker run -d --name core \
+#               --network="HIRION-network" \
+#               -p 4000:4000 \
+#               -e POSTGRES_HOST=pg-2a651911-bharathkumar100q-662f.e.aivencloud.com \
+#               -e POSTGRES_PORT=28866 \
+#               -e POSTGRES_DB=defaultdb \
+#               -e POSTGRES_USER=avnadmin \
+#               -e POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} \
+#               -e REFRESH_TOKEN_SECRET=${{ secrets.REFRESH_TOKEN_SECRET }} \
+#               -e POSTGRES_SSL=true \
+#               -e POSTGRES_CA_CERT_PATH=./keys/ca.pem \
+#               -e REDIS_URL=redis://HIRION-redis:6379 \
+#               -e FRONTEND_ORIGINS=http://44.222.35.138,http://localhost:3000,http://localhost:5173,http://localhost:8080 \
+#               ${{ secrets.DOCKER_USERNAME }}/core-service:latest
+
+#             # docker run -d --name resume -p 3000:3000 ${{ secrets.DOCKER_USERNAME }}/resume-service:latest
+#             # docker run -d --name interview -p 8000:8000 ${{ secrets.DOCKER_USERNAME }}/interview-service:latest
+
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main-v3 ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Login to Docker Hub
+        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # ✅ Build Core Service
+      - name: Build and push Core
+        uses: docker/build-push-action@v5
+        with:
+          context: ./core
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/core-service:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # ✅ Deploy to EC2
+      - name: Deploy to EC2 via SSH
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            # Ensure network exists
+            docker network create HIRION-network || true
+
+            # Pull latest Core image
+            docker pull ${{ secrets.DOCKER_USERNAME }}/core-service:latest
+
+            # Remove old Core container if exists
+            docker rm -f core 2>/dev/null || true
+
+            # Run Core container
+            docker run -d --name core \
+              --restart unless-stopped \
+              --network="HIRION-network" \
+              -p 4000:4000 \
+              -e POSTGRES_HOST=pg-2a651911-bharathkumar100q-662f.e.aivencloud.com \
+              -e POSTGRES_PORT=28866 \
+              -e POSTGRES_DB=defaultdb \
+              -e POSTGRES_USER=avnadmin \
+              -e POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} \
+              -e REFRESH_TOKEN_SECRET=${{ secrets.REFRESH_TOKEN_SECRET }} \
+              -e POSTGRES_SSL=true \
+              -e POSTGRES_CA_CERT_PATH=./keys/ca.pem \
+              -e REDIS_URL=redis://HIRION-redis:6379 \
+              -e FRONTEND_ORIGINS=http://44.222.35.138,http://localhost:3000,http://localhost:5173,http://localhost:8080 \
+              ${{ secrets.DOCKER_USERNAME }}/core-service:latest

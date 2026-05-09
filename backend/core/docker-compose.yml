@@ -1,0 +1,96 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: HIRION-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-HIRION_clone}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - HIRION-network
+
+  # Redis Cache & Queue
+  redis:
+    image: redis:7-alpine
+    container_name: HIRION-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - HIRION-network
+
+  # API Backend Service
+  # api:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #     target: development
+  #   container_name: HIRION-api
+  #   restart: unless-stopped
+  #   ports:
+  #     - '${PORT:-4000}:${PORT:-4000}'
+  #   environment:
+  #     NODE_ENV: ${NODE_ENV:-development}
+  #     PORT: ${PORT:-4000}
+  #     POSTGRES_HOST: postgres
+  #     POSTGRES_PORT: 5432
+  #     POSTGRES_DB: ${POSTGRES_DB:-HIRION_clone}
+  #     POSTGRES_USER: ${POSTGRES_USER:-postgres}
+  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+  #     REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+  #     JWT_ACCESS_PRIVATE_KEY_PATH: ${JWT_ACCESS_PRIVATE_KEY_PATH}
+  #     JWT_ACCESS_PUBLIC_KEY_PATH: ${JWT_ACCESS_PUBLIC_KEY_PATH}
+  #     JWT_REFRESH_PRIVATE_KEY_PATH: ${JWT_REFRESH_PRIVATE_KEY_PATH}
+  #     JWT_REFRESH_PUBLIC_KEY_PATH: ${JWT_REFRESH_PUBLIC_KEY_PATH}
+  #     ACCESS_TOKEN_TTL: ${ACCESS_TOKEN_TTL:-15m}
+  #     REFRESH_TOKEN_TTL: ${REFRESH_TOKEN_TTL:-30d}
+  #     SMTP_HOST: ${SMTP_HOST}
+  #     SMTP_PORT: ${SMTP_PORT}
+  #     SMTP_USER: ${SMTP_USER}
+  #     SMTP_PASS: ${SMTP_PASS}
+  #     FRONTEND_ORIGINS: ${FRONTEND_ORIGINS:-http://localhost:3000}
+  #     ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+  #   volumes:
+  #     - .:/app
+  #     - /app/node_modules
+  #     - ./uploads:/app/uploads
+  #     - ./logs:/app/logs
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #   networks:
+  #     - HIRION-network
+  #   command: npm run start:dev
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  HIRION-network:
+    driver: bridge
+

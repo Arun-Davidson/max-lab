@@ -1,0 +1,534 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&family=Bellefair&family=Fira+Code:wght@300..700&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Italianno&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&family=Josefin+Sans:ital,wght@0,100..700;1,100..700&family=Modern+Antiqua&family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&family=Roboto+Mono:ital,wght@0,100..700;1,100..700&family=Roboto:ital,wght@0,100..900;1,100..900&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+
+    font-family: "Inter", sans-serif;
+    /* Premium Palette: Navy, Emerald, Soft Cream */
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+
+    --card: 40 25% 98%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 40 25% 98%;
+    --popover-foreground: 222 47% 11%;
+
+    /* Primary: Navy/Cyan - The main brand color */
+    --primary: 205 55% 14%;
+    --primary-foreground: 187 100% 50%;
+    --primary-glow: 187 100% 50%;
+
+    /* Secondary: Warm neutral */
+    --secondary: 40 20% 93%;
+    --secondary-foreground: 222 47% 11%;
+
+    /* Muted: Warm soft tones */
+    --muted: 40 15% 92%;
+    --muted-foreground: 30 10% 40%;
+
+    /* Accent: Same as primary for consistency */
+    --accent: 205 55% 14%;
+    --accent-foreground: 187 100% 50%;
+    --accent-glow: 187 100% 50%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 40 25% 98%;
+
+    /* Borders and inputs */
+    --border: 40 15% 88%;
+    --input: 40 15% 88%;
+    --ring: 187 100% 50%;
+
+    --radius: 0.75rem;
+
+    /* Premium Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(205 55% 14%), hsl(187 100% 50%));
+    --gradient-dark: linear-gradient(135deg, hsl(222 47% 11%), hsl(222 47% 18%));
+    --gradient-soft: linear-gradient(180deg, hsl(40 25% 98%), hsl(40 20% 95%));
+
+    /* Premium Shadows */
+    --shadow-elegant: 0 4px 20px -4px hsl(30 20% 20% / 0.1);
+    --shadow-card: 0 1px 3px hsl(30 20% 20% / 0.05), 0 8px 24px -4px hsl(30 20% 20% / 0.08);
+    --shadow-glow: 0 0 40px hsl(187 100% 50% / 0.15);
+
+    /* Sidebar */
+    --sidebar-background: 40 30% 96%;
+    --sidebar-foreground: 222 47% 11%;
+    --sidebar-primary: 205 55% 14%;
+    --sidebar-primary-foreground: 187 100% 50%;
+    --sidebar-accent: 205 20% 94%;
+    --sidebar-accent-foreground: 205 55% 14%;
+    --sidebar-border: 40 15% 88%;
+    --sidebar-ring: 187 100% 50%;
+
+    /* Navy color for dark backgrounds */
+    --navy: 222 47% 11%;
+    --navy-light: 222 47% 18%;
+  }
+
+  .dark {
+    --background: 222 47% 11%;
+    --foreground: 0 0% 98%;
+
+    --card: 222 47% 14%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 222 47% 14%;
+    --popover-foreground: 0 0% 98%;
+
+    --primary: 205 55% 14%;
+    --primary-foreground: 187 100% 50%;
+
+    --secondary: 222 47% 18%;
+    --secondary-foreground: 0 0% 98%;
+
+    --muted: 222 47% 18%;
+    --muted-foreground: 220 9% 65%;
+
+    --accent: 205 55% 14%;
+    --accent-foreground: 187 100% 50%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 222 47% 20%;
+    --input: 222 47% 20%;
+    --ring: 187 100% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100vh;
+  }
+
+  /* Ensure select content appears above everything */
+  [data-radix-select-content] {
+    z-index: 9999;
+  }
+
+  #root {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  ::selection {
+    @apply bg-primary/20 text-foreground;
+  }
+}
+
+@layer components {
+
+  /* Premium Glass Effects */
+  .glass {
+    @apply bg-[hsl(40, 25%, 98%)]/80 backdrop-blur-xl border border-[hsl(40, 20%, 90%)]/50;
+  }
+
+  .glass-dark {
+    @apply bg-[hsl(222, 47%, 11%)]/90 backdrop-blur-xl border border-white/10;
+  }
+
+  .glass-card {
+    @apply bg-card rounded-2xl shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-elegant)] transition-all duration-300 border border-border/50;
+  }
+
+  /* Premium Buttons */
+  .button-primary {
+    @apply bg-primary flex items-center justify-center rounded-xl px-6 py-3 font-semibold text-primary-foreground shadow-lg shadow-primary/25 transition-all duration-300 hover:bg-primary/90 hover:shadow-xl hover:shadow-primary/30 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2;
+  }
+
+  .button-secondary {
+    @apply bg-secondary flex items-center justify-center rounded-xl px-6 py-3 font-semibold text-secondary-foreground transition-all duration-300 hover:bg-secondary/80 focus:outline-none focus:ring-2 focus:ring-border focus:ring-offset-2;
+  }
+
+  .button-outline {
+    @apply border-2 border-border bg-transparent flex items-center justify-center rounded-xl px-6 py-3 font-semibold text-foreground transition-all duration-300 hover:border-primary hover:text-primary focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2;
+  }
+
+  /* Premium Input */
+  .input-primary {
+    @apply rounded-xl border-border bg-card px-4 py-3 text-foreground shadow-sm transition-all duration-300 placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20 focus:ring-offset-0;
+  }
+
+  /* Fade Animation */
+  .fade-in-section {
+    @apply opacity-0 transition-all duration-700 ease-out;
+  }
+
+  .fade-in-section.is-visible {
+    @apply opacity-100;
+  }
+
+  /* Premium Card Hover */
+  .premium-card {
+    @apply bg-card rounded-2xl border border-border/50 shadow-[var(--shadow-card)] transition-all duration-500;
+  }
+
+  .premium-card:hover {
+    @apply shadow-[var(--shadow-elegant)] -translate-y-1 border-primary/20;
+  }
+
+  /* Mobile-optimized touch targets */
+  @media (max-width: 768px) {
+
+    button,
+    a,
+    input,
+    select,
+    textarea {
+      min-height: 44px;
+      min-width: 44px;
+    }
+
+    input,
+    select,
+    textarea {
+      font-size: 16px;
+    }
+
+    .container {
+      padding-left: 1rem;
+      padding-right: 1rem;
+    }
+  }
+
+  /* Smooth scrolling */
+  html {
+    scroll-behavior: smooth;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  * {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+
+@keyframes loading-bar {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(300%);
+  }
+}
+
+.animate-loading-bar {
+  animation: loading-bar 1.2s infinite ease-in-out;
+}
+
+
+/* ═══════════════════════════════════════
+   NEW UI Styles
+   ═══════════════════════════════════════ */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  /* font-family: 'Inter', sans-serif !important; */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ═══════════════════════════════════════
+   Typography
+   ═══════════════════════════════════════ */
+/* .font-heading {
+  font-family: 'Inter', sans-serif;
+} */
+
+/* .font-body {
+  font-family: 'Inter', sans-serif;
+} */
+
+.font-mono {
+  font-family: 'Roboto Mono', monospace;
+}
+
+.font-inter {
+  font-family: "Inter", sans-serif;
+}
+
+/* ═══════════════════════════════════════
+   Tab Slider
+   ═══════════════════════════════════════ */
+.tab-slider {
+  transition: left 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  background: linear-gradient(90deg, #5CE1E6, #38BDF8);
+}
+
+/* ═══════════════════════════════════════
+   Donut Chart Gradient
+   ═══════════════════════════════════════ */
+.donut-ring {
+  transition: stroke-dasharray 0.8s ease;
+}
+
+/* ═══════════════════════════════════════
+   Hero Floating Cards
+   ═══════════════════════════════════════ */
+.hero-card-1 {
+  animation: float1 5s ease-in-out infinite;
+}
+
+.hero-card-2 {
+  animation: float2 6s ease-in-out 0.5s infinite;
+}
+
+.hero-card-3 {
+  animation: float3 5.5s ease-in-out 1s infinite;
+}
+
+/* ═══════════════════════════════════════
+   Animation Classes
+   ═══════════════════════════════════════ */
+.anim-hidden {
+  opacity: 0;
+}
+
+.anim-fade-up {
+  animation: fadeUp 0.6s ease both;
+}
+
+.anim-fade-up-d1 {
+  animation: fadeUp 0.6s ease 0.08s both;
+}
+
+.anim-fade-up-d2 {
+  animation: fadeUp 0.6s ease 0.16s both;
+}
+
+.anim-fade-up-d3 {
+  animation: fadeUp 0.6s ease 0.24s both;
+}
+
+.anim-fade-up-d4 {
+  animation: fadeUp 0.6s ease 0.32s both;
+}
+
+.anim-fade-up-d5 {
+  animation: fadeUp 0.6s ease 0.40s both;
+}
+
+.anim-slide-left {
+  animation: slideLeft 0.45s ease both;
+}
+
+.anim-slide-right {
+  animation: slideRight 0.45s ease 0.08s both;
+}
+
+/* ═══════════════════════════════════════
+   Keyframes
+   ═══════════════════════════════════════ */
+@keyframes float1 {
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes float2 {
+
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+
+  50% {
+    transform: translateY(-6px) rotate(0.5deg);
+  }
+}
+
+@keyframes float3 {
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideRight {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* ═══════════════════════════════════════
+   Card Hover Effects
+   ═══════════════════════════════════════ */
+.nav-link {
+  @apply text-black text-[16px] font-medium transition-colors duration-200;
+}
+
+.nav-link:hover {
+  @apply text-[#1d6685];
+}
+
+.footer-link {
+  @apply block text-sm text-gray-400 no-underline mb-2 transition-colors duration-200;
+}
+
+.footer-link:hover {
+  @apply text-[#1d6685];
+}
+
+/* ═══════════════════════════════════════
+   Feature Check Icon
+   ═══════════════════════════════════════ */
+.check-icon {
+  @apply w-4 h-4 flex-shrink-0;
+}
+
+/* ═══════════════════════════════════════
+   Dark Card (Roles Section)
+   ═══════════════════════════════════════ */
+.dark-card {
+  background: #111;
+  border-radius: 22px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+}
+
+.dark-inner-card {
+  background: #1a1a24;
+  border-radius: 16px;
+}
+
+.stat-box {
+  background: #2a2a3a;
+  border-radius: 12px;
+}
+
+.stat-box-alt {
+  background: #3a3a45;
+  border-radius: 10px;
+}
+
+/* ═══════════════════════════════════════
+   How It Works Card Images
+   ═══════════════════════════════════════ */
+.card-image {
+  @apply w-full rounded-2xl overflow-hidden relative;
+  aspect-ratio: 1 / 0.85;
+  background: #1a1a1a;
+}
+
+/* ═══════════════════════════════════════
+   Logo Circles
+   ═══════════════════════════════════════ */
+.logo-circle {
+  @apply w-20 h-20 rounded-full flex items-center justify-center;
+  background: #eef0f2;
+}
+
+/* ═══════════════════════════════════════
+   Responsive
+   ═══════════════════════════════════════ */
+@media (max-width: 1070px) {
+  .nav-desktop {
+    display: none !important;
+  }
+
+  .nav-mobile-btn {
+    display: block !important;
+  }
+
+  .hiw-grid {
+    grid-template-columns: 1fr !important;
+    max-width: 420px;
+    margin: 0 auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .tab-content-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .footer-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+}
+
+
+
+/* ----------Bench animation---------*/
+
+.animate-fade-up {
+  animation: fadeUp 0.6s ease forwards;
+}
+
+.animate-pulse-slow {
+  animation: pulse 4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.15; }
+  50%      { opacity: 0.35; }
+}
+
+
+
+@keyframes floatY {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-12px); }
+}

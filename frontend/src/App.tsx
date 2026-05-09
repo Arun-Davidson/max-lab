@@ -1,0 +1,471 @@
+import { lazy, useEffect, Suspense } from "react";
+import { Toaster } from "@/components/ui/toaster";
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { ThemeProvider } from "next-themes";
+import { LanguageProvider } from "./contexts/LanguageContext";
+import { AuthProvider } from "./contexts/AuthContext";
+import PageTransition from "./components/PageTransition";
+import BarLoader from "./components/loader/BarLoader";
+import Index from "./pages/Index";
+const NotFound = lazy(() => import("./pages/NotFound"));
+// import CareerPath from "./pages/CareerPath";
+// import Marketplace from "./pages/Marketplace";
+// import FindTalent from "./pages/FindTalent";
+// import TalentProfile from "./pages/TalentProfile";
+// import RegisterTalent from "./pages/RegisterTalent";
+
+// not considering this for now (lazy loading)
+import EmployerSignup from "./pages/EmployerSignup";
+import BenchRegistration from "./pages/BenchRegistration";
+import EmployerLogin from "./pages/EmployerLogin";
+import BenchLogin from "./pages/BenchLogin";
+import ContractorLogin from "./pages/ContractorLogin";
+import ContractorSignup from "./pages/ContractorSignup";
+
+// import ProfileVisibility from "./pages/ProfileVisibility";
+// import Register from "./pages/Register";
+// import JobSearch from "./pages/JobSearch";
+// import JobDetails from "./pages/JobDetails";
+// import ListBenchTalent from "./pages/ListBenchTalent";
+// import Login from "./pages/Login";
+// import CandidateProfile from "./pages/CandidateProfile";
+// import JobRecommendations from "./pages/JobRecommendations";
+// import SkillsAssessment from "./pages/SkillsAssessment";
+// import SavedJobs from "./pages/SavedJobs";
+
+// Old Employer Dashboard (keeping for compatibility)
+const EmployerLayoutOld = lazy(() => import("./components/employer/HrLayout"));
+const CompanyDashboard = lazy(
+  () => import("./pages/employer/CompanyDashboard"),
+);
+const PostJob = lazy(() => import("./pages/employer/PostJob"));
+const AIScreening = lazy(() => import("./pages/employer/AIScreening"));
+const HireFullTime = lazy(() => import("./pages/employer/HireFullTime"));
+const HireInterns = lazy(() => import("./pages/employer/HireInterns"));
+const ContractHiring = lazy(() => import("./pages/employer/ContractHiring"));
+const TalentMarketplace = lazy(
+  () => import("./pages/employer/TalentMarketplace"),
+);
+const PostBenchResource = lazy(
+  () => import("./pages/employer/PostBenchResource"),
+);
+const ActiveResources = lazy(() => import("./pages/employer/ActiveResources"));
+const VisibilitySettings = lazy(
+  () => import("./pages/employer/VisibilitySettings"),
+);
+const JobCandidates = lazy(() => import("./pages/employer/JobCandidates"));
+const AIInterviewResults = lazy(
+  () => import("./pages/employer/AIInterviewResults"),
+);
+const JobBoard = lazy(() => import("./pages/employer/JobBoard"));
+const CreateJob = lazy(() => import("./pages/employer/CreateJob"));
+const JobDetailsPage = lazy(() => import("./pages/employer/JobDetails"));
+const CandidateDetailPage = lazy(
+  () => import("./pages/employer/CandidateDetailPage"),
+);
+// New Dashboard Layout
+const UnifiedDashboardLayout = lazy(
+  () => import("./components/dashboard/UnifiedDashboardLayout"),
+);
+
+// New Dashboard Pages
+const ContractorDashboard = lazy(
+  () => import("./pages/contractor/ContractorDashboard"),
+);
+const ContractorProfile = lazy(
+  () => import("./pages/contractor/ContractorProfile"),
+);
+// const ContractorAiInterview = lazy(
+//   () => import("./pages/contractor/ContractorAiInterview"),
+// );
+const ContractorProfileUpdate = lazy(
+  () => import("./pages/contractor/ContractorProfileUpdate"),
+);
+const ContractorSettings = lazy(
+  () => import("./pages/contractor/ContractorSettings"),
+);
+const ContractorSkillTest = lazy(
+  () => import("./pages/contractor/ContractorSkillTest"),
+);
+const MockTestReport = lazy(
+  () => import("./pages/contractor/MockTestReport"),
+);
+const BenchDashboard = lazy(() => import("./pages/bench/BenchDashboard"));
+// import HiringDashboardNew from "./pages/employer/HiringDashboardNew";
+// import EmployerPostJob from "./pages/employer/EmployerPostJob";
+// import EmployerAIShortlists from "./pages/employer/EmployerAIShortlists";
+// import EmployerSkillTests from "./pages/employer/EmployerSkillTests";
+// import EmployerAIInterviews from "./pages/employer/EmployerAIInterviews";
+// import EmployerContracts from "./pages/employer/EmployerContracts";
+// import EmployerSettings from "./pages/employer/EmployerSettings";
+
+import { useFetchRefreshToken } from "./services/utils/hooks/useFetchRefreshToken";
+import ForgotPassword from "./pages/ForgotPassword";
+import { ProtectedLayout } from "./components/auth/ProtectedLayout";
+import Unauthorized from "./pages/Unauthorized";
+import { LazyRoute } from "./pages/LazyRoute";
+import ResetPassword from "./pages/ResetPassword";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import TermsService from "./pages/TermsService";
+
+
+const HiringDashboardNew = lazy(
+  () => import("./pages/employer/HiringDashboardNew"),
+);
+const EmployerPostJob = lazy(() => import("./pages/employer/EmployerPostJob"));
+const ShowJobs = lazy(() => import("./pages/employer/ShowJobs"));
+const EmployerAIShortlists = lazy(
+  () => import("./pages/employer/EmployerAIShortlists"),
+);
+const EmployerSkillTests = lazy(
+  () => import("./pages/employer/EmployerSkillTests"),
+);
+const EmployerAIInterviews = lazy(
+  () => import("./pages/employer/EmployerAIInterviews"),
+);
+const EmployerContracts = lazy(
+  () => import("./pages/employer/EmployerContracts"),
+);
+const EmployerSettings = lazy(
+  () => import("./pages/employer/EmployerSettings"),
+);
+const InterviewQuestions = lazy(
+  () => import("./pages/employer/InterviewQuestions"),
+);
+const CandidateProfileView = lazy(
+  () => import("./pages/employer/CandidateProfileView"),
+);
+
+// coding challenges
+const CodingChallenge = lazy(() => import("./pages/CodingChallenges"));
+
+const queryClient = new QueryClient();
+
+// Scroll to top on route change
+const ScrollToTop = () => {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+
+  return null;
+};
+
+// Component to handle refresh token logic - must be inside all providers
+const RefreshTokenHandler = () => {
+  useFetchRefreshToken();
+  return null;
+};
+
+const App = () => {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+        <TooltipProvider>
+          <LanguageProvider>
+            <AuthProvider>
+              <RefreshTokenHandler />
+              <Toaster />
+              <Sonner />
+              <BrowserRouter>
+                <ScrollToTop />
+                <PageTransition>
+                  <Suspense fallback={<BarLoader />}>
+                    <Routes>
+                      <Route path="/" element={<Index />} />
+                      <Route
+                        path="/hire-talent-login"
+                        element={<EmployerLogin />}
+                      />
+                      <Route
+                        path="/hire-talent-signup"
+                        element={<EmployerSignup />}
+                      />
+                      <Route
+                        path="/bench-registration"
+                        element={<BenchRegistration />}
+                      />
+                      <Route path="/bench-login" element={<BenchLogin />} />
+                      <Route
+                        path="/contractor-login"
+                        element={<ContractorLogin />}
+                      />
+
+                      <Route
+                        path="/contractor-signup"
+                        element={<ContractorSignup />}
+                      />
+
+                      {/* Forgot password Route */}
+                      <Route
+                        path="/forgot-password"
+                        element={<ForgotPassword />}
+                      />
+                      <Route path="/reset-password" element={<ResetPassword />} />
+
+                      {/* Coding Challenge Route */}
+                      <Route
+                        path="/coding-challenge/:challengeId?"
+                        element={<LazyRoute element={<CodingChallenge />} />}
+                      />
+
+                      {/* NEW: Contractor Dashboard Routes */}
+                      {/* "candidate" role users access the contractor dashboard */}
+                      {/* (UI role is "contractor", auth role is "candidate") */}
+                      <Route
+                        element={<ProtectedLayout allowedRoles={["candidate"]} />}
+                      >
+                        <Route
+                          path="/contractor"
+                          element={<UnifiedDashboardLayout role="contractor" />}
+                        >
+                          <Route index element={<ContractorDashboard />} />
+                          <Route
+                            path="dashboard"
+                            element={<ContractorDashboard />}
+                          />
+                          <Route path="profile" element={<ContractorProfile />} />
+                          <Route path="profile/update" element={<ContractorProfileUpdate />} />
+                          <Route path="tests" element={<ContractorSkillTest />} />
+                          <Route path="tests/report" element={<MockTestReport />} />
+                          {/* // TODO: replace with dedicated page components */}
+                          {/* <Route
+                            path="interviews"
+                            element={<ContractorAiInterview />}
+                          /> */}
+                          <Route
+                            path="settings"
+                            element={<ContractorSettings />}
+                          />
+                        </Route>
+                      </Route>
+
+                      {/* NEW: Employer (old bench) Dashboard Routes */}
+                      <Route
+                        element={<ProtectedLayout allowedRoles={["employer"]} />}
+                      >
+                        <Route
+                          path="/hire-talent"
+                          element={<UnifiedDashboardLayout role="hire-talent" />}
+                        >
+                          <Route index element={<HiringDashboardNew />} />
+                          {/* <Route index element={<BenchDashboard />} />
+                        <Route path="dashboard" element={<BenchDashboard />} />
+                        <Route path="talent" element={<BenchDashboard />} />
+                        <Route path="matches" element={<BenchDashboard />} />
+                        <Route path="analytics" element={<BenchDashboard />} />
+                        <Route path="contracts" element={<BenchDashboard />} />
+                        <Route path="billing" element={<BenchDashboard />} /> */}
+                          <Route
+                            path="dashboard"
+                            element={<HiringDashboardNew />}
+                          />
+                          <Route path="post-job" element={<EmployerPostJob />} />
+                          <Route path="jobs" element={<ShowJobs />} />
+                          <Route
+                            path="ai-shortlists"
+                            element={<EmployerAIShortlists />}
+                          />
+                          <Route
+                            path="candidate/:id"
+                            element={<CandidateProfileView />}
+                          />
+                          <Route
+                            path="skill-tests"
+                            element={<EmployerSkillTests />}
+                          />
+                          <Route
+                            path="ai-interviews"
+                            element={<EmployerAIInterviews />}
+                          />
+                          <Route
+                            path="interview-questions"
+                            element={<InterviewQuestions />}
+                          />
+                          <Route
+                            path="contracts"
+                            element={<EmployerContracts />}
+                          />
+                          <Route path="settings" element={<EmployerSettings />} />
+                        </Route>
+                      </Route>
+
+                      {/* Legacy (Employer -Current using) HR Dashboard Routes */}
+                      <Route element={<ProtectedLayout allowedRoles={["hr"]} />}>
+                        <Route
+                          path="/bench-dashboard"
+                          element={<EmployerLayoutOld />}
+                        >
+                          <Route index element={<CompanyDashboard />} />
+                          <Route
+                            path="dashboard"
+                            element={<CompanyDashboard />}
+                          />
+                          <Route path="job-board" element={<JobBoard />} />
+                          <Route path="create-job" element={<CreateJob />} />
+                          <Route path="post-job" element={<PostJob />} />
+                          <Route
+                            path="hire-fulltime"
+                            element={<HireFullTime />}
+                          />
+                          <Route path="hire-interns" element={<HireInterns />} />
+                          <Route
+                            path="contract-hiring"
+                            element={<ContractHiring />}
+                          />
+                          <Route
+                            path="talent-marketplace"
+                            element={<TalentMarketplace />}
+                          />
+                          <Route
+                            path="post-bench-resource"
+                            element={<PostBenchResource />}
+                          />
+                          <Route
+                            path="active-resources"
+                            element={<ActiveResources />}
+                          />
+                          <Route
+                            path="visibility-settings"
+                            element={<VisibilitySettings />}
+                          />
+                          <Route path="ai-screening" element={<AIScreening />} />
+                          <Route path="job/:jobId" element={<JobDetailsPage />} />
+                          <Route
+                            path="job/:jobId/candidates"
+                            element={<JobCandidates />}
+                          />
+                          <Route
+                            path="job/:jobId/candidate/:candidateId"
+                            element={<CandidateDetailPage />}
+                          />
+                          <Route
+                            path="interview-results/:candidateId"
+                            element={<AIInterviewResults />}
+                          />
+                          <Route path="settings" element={<EmployerSettings />} />
+                        </Route>
+                      </Route>
+
+                      {/* <Route
+                      path="/profile-visibility"
+                      element={<ProfileVisibility />}
+                    />
+                    <Route path="/bench-dashboard/job/:jobId/applied-candidates" element={<AppliedCandidates />} />
+                    <Route path="/register" element={<Register />} />
+                    <Route path="/jobs" element={<JobSearch />} />
+                    <Route path="/jobs/:id" element={<JobDetails />} />
+                    <Route path="/job/:id" element={<JobDetails />} />
+                    <Route
+                      path="/list-bench-talent"
+                      element={<ListBenchTalent />}
+                    />
+                    <Route path="/login" element={<Login />} /> */}
+
+                      {/* <Route
+                      path="/job-recommendations"
+                      element={<JobRecommendations />}
+                    />
+                    <Route
+                      path="/skills-assessment"
+                      element={<SkillsAssessment />}
+                    />
+                    <Route path="/saved-jobs" element={<SavedJobs />} /> */}
+
+                      {/* <Route path="/career-path" element={<CareerPath />} />
+                    <Route path="/marketplace" element={<Marketplace />} />
+                    <Route path="/find-talent" element={<FindTalent />} />
+                    <Route path="/talent/:id" element={<TalentProfile />} /> */}
+                      {/* <Route
+                      path="/register-talent"
+                      element={<RegisterTalent />}
+                    /> */}
+
+                      {/* NEW: (But not used) Hiring Company Dashboard Routes */}
+                      {/* <Route
+                      path="/employer"
+                      element={<UnifiedDashboardLayout role="employer" />}
+                    >
+                      <Route index element={<HiringDashboardNew />} />
+                      <Route
+                        path="dashboard"
+                        element={<HiringDashboardNew />}
+                      />
+                      <Route path="post-job" element={<EmployerPostJob />} />
+                      <Route
+                        path="ai-shortlists"
+                        element={<EmployerAIShortlists />}
+                      />
+                      <Route
+                        path="skill-tests"
+                        element={<EmployerSkillTests />}
+                      />
+                      <Route
+                        path="ai-interviews"
+                        element={<EmployerAIInterviews />}
+                      />
+                      <Route path="contracts" element={<EmployerContracts />} />
+                      <Route path="settings" element={<EmployerSettings />} />
+                    </Route> */}
+
+                      {/* Standalone employer routes (redirect to dashboard) */}
+                      {/* <Route path="/post-job" element={<EmployerLayoutOld />}>
+                      <Route index element={<PostJob />} />
+                    </Route>
+                    <Route
+                      path="/hire-fulltime"
+                      element={<EmployerLayoutOld />}
+                    >
+                      <Route index element={<HireFullTime />} />
+                    </Route>
+                    <Route path="/hire-interns" element={<EmployerLayoutOld />}>
+                      <Route index element={<HireInterns />} />
+                    </Route>
+                    <Route
+                      path="/contract-hiring"
+                      element={<EmployerLayoutOld />}
+                    >
+                      <Route index element={<ContractHiring />} />
+                    </Route>
+                    <Route
+                      path="/talent-marketplace"
+                      element={<EmployerLayoutOld />}
+                    >
+                      <Route index element={<TalentMarketplace />} />
+                    </Route>
+                    <Route path="/ai-screening" element={<EmployerLayoutOld />}>
+                      <Route index element={<AIScreening />} />
+                    </Route>
+                    <Route
+                      path="/company-dashboard"
+                      element={<EmployerLayoutOld />}
+                    >
+                      <Route index element={<CompanyDashboard />} />
+                    </Route> */}
+
+                      <Route path="/unauthorized" element={<Unauthorized />} />
+                      <Route path="/privacy" element={<PrivacyPolicy />} />
+                      <Route path="/terms" element={<TermsService />} />
+
+                      {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                      <Route
+                        path="*"
+                        element={<LazyRoute element={<NotFound />} />}
+                      />
+                    </Routes>
+                  </Suspense>
+                </PageTransition>
+              </BrowserRouter>
+            </AuthProvider>
+          </LanguageProvider>
+        </TooltipProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
+  );
+};
+
+export default App;

@@ -1,0 +1,11 @@
+flask
+requests
+pdfplumber
+spacy
+sentence-transformers
+numpy
+pyyaml
+flask-cors
+sumy
+nltk
+python-docx
