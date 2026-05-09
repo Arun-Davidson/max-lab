@@ -41,11 +41,15 @@ interface EditorPanelProps {
 const getMonacoLanguage = (name?: string): string => {
   if (!name) return "javascript";
   const normalized = name.toLowerCase();
-  if (normalized.includes("javascript")) return "javascript";
-  if (normalized.includes("typescript")) return "typescript";
-  if (normalized.includes("python")) return "python";
-  if (normalized.includes("java") && !normalized.includes("javascript"))
+  if (normalized.startsWith("javascript")) return "javascript";
+  if (normalized.startsWith("typescript")) return "typescript";
+  if (normalized.startsWith("python")) return "python";
+  if (normalized.startsWith("java") && !normalized.startsWith("javascript"))
     return "java";
+  if (normalized.startsWith("c++") || normalized === "c" || normalized.startsWith("c ") || normalized.startsWith("c(")) {
+    return "cpp";
+  }
+  if (normalized.startsWith("go ") || normalized.startsWith("go(")) return "go";
   return normalized;
 };
 
@@ -88,12 +92,14 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
 
     const getLanguageKey = (name?: string): string => {
       if (!name) return "";
-      const n = name.toLowerCase();
-      if (n.includes("javascript")) return "javascript";
-      if (n.includes("typescript")) return "typescript";
-      if (n.includes("python")) return "python";
-      if (n.includes("java") && !n.includes("javascript")) return "java";
-      if (n.includes("go")) return "go";
+      const n = name.toLowerCase().trim();
+      if (n.startsWith("javascript")) return "javascript";
+      if (n.startsWith("typescript")) return "typescript";
+      if (n.startsWith("python")) return "python";
+      if (n.startsWith("java") && !n.startsWith("javascript")) return "java";
+      if (n.startsWith("go ") || n.startsWith("go(")) return "go";
+      if (n.startsWith("c++")) return "cpp";
+      if (n === "c" || n.startsWith("c ") || n.startsWith("c(")) return "c";
       return n;
     };
 
