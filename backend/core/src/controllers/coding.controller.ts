@@ -118,6 +118,15 @@ export const getProblemTags = async (req: AuthRequest, res: Response, next: Next
   }
 };
 
+export const getLanguages = async (_req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const languages = await codingService.getSupportedLanguages();
+    res.status(StatusCodes.OK).json({ success: true, data: languages });
+  } catch (error) {
+    next(error);
+  }
+};
+
 /**
  * @swagger
  * /api/v1/coding/tests/{id}/invite:
