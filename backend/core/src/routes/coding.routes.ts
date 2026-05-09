@@ -17,6 +17,7 @@ router.use(authMiddleware);
 router.get('/problems', codingController.getProblems);
 router.get('/problems/:id', codingController.getProblemById);
 router.get('/tags', codingController.getProblemTags);
+router.get('/languages', codingController.getLanguages);
 
 // Mock test: list results & get report (must be before /:id wildcard routes)
 router.get('/tests/my-results', codingController.getMyTestResults);
