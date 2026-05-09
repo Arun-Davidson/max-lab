@@ -541,6 +541,10 @@ export const getProblemTags = async (): Promise<string[]> => {
   return (results[0] as any[]).map((r) => r.unnest_tags);
 };
 
+export const getSupportedLanguages = async () => {
+  return judge0Service.getLanguages();
+};
+
 // ── Service Functions ─────────────────────────────────────────────────────────
 
 const scoreProblem = (tp: TestProblemRecord, sub: SubmissionRecord | undefined): ProblemScore => {
