@@ -89,12 +89,14 @@ const getLanguageId = (langObj?: Language): number => {
 
 const getLanguageKey = (name?: string): string => {
   if (!name) return "";
-  const n = name.toLowerCase();
-  if (n.includes("javascript")) return "javascript";
-  if (n.includes("typescript")) return "typescript";
-  if (n.includes("python")) return "python";
-  if (n.includes("java") && !n.includes("javascript")) return "java";
-  if (n.includes("go")) return "go";
+  const n = name.toLowerCase().trim();
+  if (n.startsWith("javascript")) return "javascript";
+  if (n.startsWith("typescript")) return "typescript";
+  if (n.startsWith("python")) return "python";
+  if (n.startsWith("java") && !n.startsWith("javascript")) return "java";
+  if (n.startsWith("go ") || n.startsWith("go(")) return "go";
+  if (n.startsWith("c++")) return "cpp";
+  if (n === "c" || n.startsWith("c ") || n.startsWith("c(")) return "c";
   return n;
 };
 
@@ -242,47 +244,7 @@ const CodingChallenge: React.FC = () => {
 
   const filteredLanguages = useMemo(() => {
     if (!languagesData) return [];
-    const getLangKey = (name: string): string => {
-      const n = name.toLowerCase();
-      if (n.includes("javascript")) return "javascript";
-      if (n.includes("typescript")) return "typescript";
-      if (n.includes("python")) return "python";
-      if (n.includes("java") && !n.includes("javascript")) return "java";
-      if (n.includes("go")) return "go";
-      return n;
-    };
-
-    const supportedKeys = [
-      "go",
-      "java",
-      "javascript",
-      "python",
-      "typescript",
-    ];
-    const uniqueLangs = new Map<string, Language>();
-
-    const preferredIds: Record<string, number> = {
-      python: 71, // Python 3.8.1
-    };
-
-    languagesData.forEach((lang) => {
-      const key = getLangKey(lang.name);
-      if (supportedKeys.includes(key)) {
-        const existing = uniqueLangs.get(key);
-
-        if (preferredIds[key] === lang.id) {
-          // Always prioritize the explicitly preferred ID
-          uniqueLangs.set(key, lang);
-        } else if (!existing) {
-          uniqueLangs.set(key, lang);
-        } else if (existing.id !== preferredIds[key] && lang.id > existing.id) {
-          // Keep the highest ID, unless we already have the preferred one
-          uniqueLangs.set(key, lang);
-        }
-      }
-    });
-
-    return Array.from(uniqueLangs.values());
+    return [...languagesData].sort((a, b) => a.name.localeCompare(b.name));
   }, [languagesData]);
 
   const [language, setLanguage] = useState<Language | undefined>();
