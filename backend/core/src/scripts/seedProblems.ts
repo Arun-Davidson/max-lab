@@ -45,6 +45,38 @@ interface ProblemRaw {
 
 const STATER_CODE_DIR = path.resolve(__dirname, '../../stater_code');
 
+const validateTestcase = (problemTitle: string, testcase: TestCaseRaw, index: number): void => {
+  if (typeof testcase.input !== 'string') {
+    throw new Error(
+      `Invalid testcase input type for problem "${problemTitle}" at index ${index}. Expected string input.`,
+    );
+  }
+
+  if (typeof testcase.expected_output !== 'string') {
+    throw new Error(
+      `Invalid testcase expected_output type for problem "${problemTitle}" at index ${index}. Expected string output.`,
+    );
+  }
+
+  const trimmedInput = testcase.input.trim();
+  if (!trimmedInput) {
+    throw new Error(`Empty testcase input for problem "${problemTitle}" at index ${index}.`);
+  }
+
+  // Validate that testcase inputs are compatible with Judge0 function wrapper parsing.
+  try {
+    JSON.parse(trimmedInput);
+  } catch {
+    try {
+      JSON.parse(`[${trimmedInput}]`);
+    } catch {
+      throw new Error(
+        `Unparseable testcase input for problem "${problemTitle}" at index ${index}: ${testcase.input}`,
+      );
+    }
+  }
+};
+
 async function seed() {
   await sequelize.authenticate();
   console.log('✓ DB connected');
@@ -64,6 +96,8 @@ async function seed() {
     const difficulty = file.replace('.json', '') as 'easy' | 'medium' | 'hard';
 
     for (const p of raw) {
+      p.test_cases.forEach((tc, idx) => validateTestcase(p.title, tc, idx));
+
       // Find or create by title + difficulty
       const [prob] = await Problem.findOrCreate({
         where: { title: p.title, difficulty },
