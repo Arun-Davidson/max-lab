@@ -21,14 +21,29 @@ const JUDGE0_POLL_INTERVAL_MS = 700;
 const JUDGE0_POLL_TIMEOUT_MS = 25000;
 const JUDGE0_MAX_RETRIES = 2;
 
-type LanguageFamily = 'javascript' | 'typescript' | 'python' | 'go';
+type ExecutionMode = 'function' | 'program';
+type LanguageFamily =
+  | 'javascript'
+  | 'typescript'
+  | 'python'
+  | 'go'
+  | 'java'
+  | 'cpp'
+  | 'rust'
+  | 'ruby';
 
 const LANGUAGE_FAMILIES: Record<LanguageFamily, number[]> = {
   javascript: [63, 93, 97, 102],
   typescript: [74, 94, 101],
   python: [70, 71, 92, 100, 109, 113],
   go: [60, 95, 106, 107],
+  java: [62],
+  cpp: [52, 53, 54],
+  rust: [73],
+  ruby: [72],
 };
+
+const FUNCTION_WRAPPER_FAMILIES = new Set<LanguageFamily>(['javascript', 'typescript', 'python', 'go']);
 
 const delay = async (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
@@ -107,6 +122,51 @@ const extractFunctionName = (sourceCode: string): string => {
   }
 
   return '';
+};
+
+const hasProgramEntrypoint = (sourceCode: string, family: LanguageFamily): boolean => {
+  if (family === 'javascript' || family === 'typescript') {
+    return /(?:^|\s)(?:async\s+)?function\s+main\s*\(|process\.stdin|readline|require\(['"]fs['"]\)/m.test(
+      sourceCode,
+    );
+  }
+
+  if (family === 'python') {
+    return /if\s+__name__\s*==\s*['"]__main__['"]|sys\.stdin|input\(/m.test(sourceCode);
+  }
+
+  if (family === 'go') {
+    return /func\s+main\s*\(|os\.Stdin|bufio\.NewReader\(os\.Stdin\)/m.test(sourceCode);
+  }
+
+  if (family === 'java') {
+    return /public\s+static\s+void\s+main\s*\(/m.test(sourceCode);
+  }
+
+  if (family === 'cpp') {
+    return /int\s+main\s*\(|std::cin|scanf\(/m.test(sourceCode);
+  }
+
+  if (family === 'rust') {
+    return /fn\s+main\s*\(|std::io::stdin\(\)/m.test(sourceCode);
+  }
+
+  if (family === 'ruby') {
+    return /\$stdin|gets\b|if\s+__FILE__\s*==\s*\$0/m.test(sourceCode);
+  }
+
+  return false;
+};
+
+const resolveExecutionMode = (
+  sourceCode: string,
+  family: LanguageFamily | null,
+  functionName: string,
+): ExecutionMode => {
+  if (!family) return 'program';
+  if (hasProgramEntrypoint(sourceCode, family)) return 'program';
+  if (FUNCTION_WRAPPER_FAMILIES.has(family) && functionName) return 'function';
+  return 'program';
 };
 
 const normalizeNumberString = (value: number): string => {
@@ -426,17 +486,19 @@ export const submitCode = async (
   try {
     const family = getLanguageFamily(languageId);
     const functionName = family ? extractFunctionName(sourceCode) : '';
-    if (family && !functionName) {
+    const mode = resolveExecutionMode(sourceCode, family, functionName);
+
+    if (mode === 'function' && !functionName) {
       throw new Error(
         `Could not detect function name for language_id=${languageId}. Please submit a function implementation.`,
       );
     }
 
-    const wrappedSource = family
+    const wrappedSource = mode === 'function' && family
       ? buildWrappedSourceCode(sourceCode, family, functionName)
       : sourceCode;
 
-    const preparedStdin = family ? normalizeFunctionInput(stdin) : stdin?.trim() || null;
+    const preparedStdin = mode === 'function' ? normalizeFunctionInput(stdin) : stdin?.trim() || null;
     const preparedExpectedOutput = normalizeExpectedOutput(expectedOutput);
 
     const payload = {
@@ -446,6 +508,14 @@ export const submitCode = async (
       expected_output:
         preparedExpectedOutput !== null ? base64Encode(preparedExpectedOutput) : null,
     };
+
+    logger.info('[Judge0] Submission payload prepared', {
+      languageId,
+      family,
+      mode,
+      hasStdin: !!preparedStdin,
+      hasExpectedOutput: preparedExpectedOutput !== null,
+    });
 
     const { token } = await createSubmission(payload);
     return await pollSubmission(token);
