@@ -50,6 +50,12 @@ const delay = async (ms: number): Promise<void> =>
 
 const base64Encode = (value: string): string => Buffer.from(value, 'utf8').toString('base64');
 
+const previewForLog = (value: string | null, maxLen = 200): string | null => {
+  if (value === null) return null;
+  if (value.length <= maxLen) return value;
+  return `${value.slice(0, maxLen)}...<truncated:${value.length}>`;
+};
+
 const safeBase64Decode = (value: string | null): string | null => {
   if (!value) return value;
   try {
@@ -508,6 +514,18 @@ export const submitCode = async (
       expected_output:
         preparedExpectedOutput !== null ? base64Encode(preparedExpectedOutput) : null,
     };
+
+    console.log('[Judge0] Params passed to Judge0', {
+      language_id: languageId,
+      family,
+      mode,
+      stdin: previewForLog(preparedStdin),
+      expected_output: previewForLog(preparedExpectedOutput),
+      source_code_preview: previewForLog(wrappedSource),
+      source_code_length: wrappedSource.length,
+      stdin_length: preparedStdin?.length ?? 0,
+      expected_output_length: preparedExpectedOutput?.length ?? 0,
+    });
 
     logger.info('[Judge0] Submission payload prepared', {
       languageId,
