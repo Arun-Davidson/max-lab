@@ -406,6 +406,19 @@ export const processSubmission = async (
     if (!problem) throw new Error('Problem not found');
 
     const testcases = (problem as any).testcases;
+    const testcaseSummary = (testcases || []).map((tc: any) => ({
+      testcaseId: tc.dataValues?.id ?? tc.id,
+      isHidden: tc.isHidden,
+    }));
+
+    console.log('[Coding][processSubmission] DB testcase fetch summary', {
+      problemId,
+      totalTestcases: (testcases || []).length,
+      visibleTestcases: testcaseSummary.filter((tc: any) => !tc.isHidden).length,
+      hiddenTestcases: testcaseSummary.filter((tc: any) => tc.isHidden).length,
+      testcaseSummary,
+    });
+
     const results: any[] = [];
     let allPassed = true;
     let overallStatus = 'Accepted';
@@ -514,6 +527,19 @@ export const runTestcases = async (problemId: number, code: string, languageId: 
     if (!problem) throw new Error('Problem not found');
 
     const testcases = (problem as any).testcases;
+    const testcaseSummary = (testcases || []).map((tc: any) => ({
+      testcaseId: tc.dataValues?.id ?? tc.id,
+      isHidden: tc.isHidden,
+    }));
+
+    console.log('[Coding][runTestcases] DB testcase fetch summary', {
+      problemId,
+      totalTestcases: (testcases || []).length,
+      visibleTestcases: testcaseSummary.filter((tc: any) => !tc.isHidden).length,
+      hiddenTestcases: testcaseSummary.filter((tc: any) => tc.isHidden).length,
+      testcaseSummary,
+    });
+
     const results: any[] = [];
     let allPassed = true;
 
