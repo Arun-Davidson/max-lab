@@ -421,12 +421,19 @@ export const processSubmission = async (
 
       results.push({
         testcaseId: testcase.id,
+        statusId: res.status.id,
         status: res.status.description,
         pass: res.status.id === 3, // 3 is "Accepted"
         time: res.time,
         memory: res.memory,
         isHidden: testcase.isHidden,
-        ...(testcase.isHidden ? {} : { stdout: res.stdout, stderr: res.stderr }),
+        ...(testcase.isHidden
+          ? {}
+          : {
+              stdout: res.stdout,
+              stderr: res.stderr,
+              expectedOutput: testcase.dataValues.expectedOutput,
+            }),
       });
 
       if (res.status.id !== 3) {
@@ -501,13 +508,20 @@ export const runTestcases = async (problemId: number, code: string, languageId: 
 
       results.push({
         testcaseId: testcase.id,
+        statusId: res.status.id,
         status: res.status.description,
         pass: res.status.id === 3,
         time: res.time,
         memory: res.memory,
         isHidden: testcase.isHidden,
         compile_output: res.compile_output,
-        ...(testcase.isHidden ? {} : { stdout: res.stdout, stderr: res.stderr }),
+        ...(testcase.isHidden
+          ? {}
+          : {
+              stdout: res.stdout,
+              stderr: res.stderr,
+              expectedOutput: testcase.dataValues.expectedOutput,
+            }),
       });
 
       if (res.status.id !== 3) {
