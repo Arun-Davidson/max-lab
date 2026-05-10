@@ -412,6 +412,8 @@ export const processSubmission = async (
 
     // Run test cases via Judge0
     for (const testcase of testcases) {
+      const testcaseId = testcase.dataValues?.id ?? testcase.id;
+
       const res = await judge0Service.submitCode(
         code,
         languageId,
@@ -421,9 +423,10 @@ export const processSubmission = async (
 
       console.log('[Judge0][processSubmission] Testcase response', {
         problemId,
-        testcaseId: testcase.id,
+        testcaseId,
         input: testcase.dataValues.input,
         expectedOutput: testcase.dataValues.expectedOutput,
+        token: res.token,
         statusId: res.status?.id,
         status: res.status?.description,
         stdout: res.stdout,
@@ -435,7 +438,8 @@ export const processSubmission = async (
       });
 
       results.push({
-        testcaseId: testcase.id,
+        testcaseId,
+        token: res.token,
         statusId: res.status.id,
         status: res.status.description,
         pass: res.status.id === 3, // 3 is "Accepted"
@@ -514,6 +518,8 @@ export const runTestcases = async (problemId: number, code: string, languageId: 
     let allPassed = true;
 
     for (const testcase of testcases) {
+      const testcaseId = testcase.dataValues?.id ?? testcase.id;
+
       const res = await judge0Service.submitCode(
         code,
         languageId,
@@ -523,9 +529,10 @@ export const runTestcases = async (problemId: number, code: string, languageId: 
 
       console.log('[Judge0][runTestcases] Testcase response', {
         problemId,
-        testcaseId: testcase.id,
+        testcaseId,
         input: testcase.dataValues.input,
         expectedOutput: testcase.dataValues.expectedOutput,
+        token: res.token,
         statusId: res.status?.id,
         status: res.status?.description,
         stdout: res.stdout,
@@ -537,7 +544,8 @@ export const runTestcases = async (problemId: number, code: string, languageId: 
       });
 
       results.push({
-        testcaseId: testcase.id,
+        testcaseId,
+        token: res.token,
         statusId: res.status.id,
         status: res.status.description,
         pass: res.status.id === 3,
