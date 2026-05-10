@@ -109,16 +109,51 @@ const extractFunctionName = (sourceCode: string): string => {
   return '';
 };
 
+const normalizeNumberString = (value: number): string => {
+  if (!Number.isFinite(value)) return String(value);
+  if (Number.isInteger(value)) return String(value);
+  return String(parseFloat(value.toString()));
+};
+
+const normalizeExpectedOutput = (expectedOutput?: string): string | null => {
+  if (expectedOutput === undefined || expectedOutput === null) return null;
+
+  const trimmed = expectedOutput.trim();
+  if (!trimmed) return '';
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (typeof parsed === 'string') return parsed;
+    if (typeof parsed === 'number') return normalizeNumberString(parsed);
+    if (typeof parsed === 'boolean') return parsed ? 'true' : 'false';
+    return JSON.stringify(parsed);
+  } catch {
+    return trimmed;
+  }
+};
+
 const normalizeFunctionInput = (stdin?: string): string | null => {
   if (!stdin) return null;
   const trimmed = stdin.trim();
   if (!trimmed) return null;
 
-  if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
-    return trimmed;
+  let args: unknown[] = [];
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    // If a testcase input is a JSON array, it is usually a single function argument (e.g. [1,2,3]).
+    // Variadic inputs are represented in starter JSON as comma-separated values and handled below.
+    args = [parsed];
+  } catch {
+    try {
+      const variadic = JSON.parse(`[${trimmed}]`);
+      args = Array.isArray(variadic) ? variadic : [variadic];
+    } catch {
+      args = [trimmed];
+    }
   }
 
-  return `[${trimmed}]`;
+  return JSON.stringify({ args });
 };
 
 const buildWrappedSourceCode = (
@@ -131,12 +166,17 @@ const buildWrappedSourceCode = (
 ${sourceCode}
 const line = require('fs').readFileSync('/dev/stdin', 'utf8').trim();
 if (!line) process.exit(0);
-const input = JSON.parse(line);
-const result = ${functionName}(...input);
+const parsed = JSON.parse(line);
+const args = Array.isArray(parsed) ? parsed : (parsed?.args || []);
+const result = ${functionName}(...args);
 if (typeof result === 'boolean') {
   console.log(result ? 'true' : 'false');
+} else if (typeof result === 'number') {
+  console.log(Number.isFinite(result) ? String(parseFloat(result.toString())) : String(result));
+} else if (typeof result === 'string') {
+  console.log(result);
 } else {
-  console.log(typeof result === 'object' ? JSON.stringify(result) : result);
+  console.log(result === undefined ? '' : JSON.stringify(result));
 }
 `;
   }
@@ -148,12 +188,17 @@ declare const process: any;
 ${sourceCode}
 const line = require('fs').readFileSync('/dev/stdin', 'utf8').trim();
 if (!line) process.exit(0);
-const input = JSON.parse(line);
-const result = (${functionName} as any)(...input);
+const parsed = JSON.parse(line);
+const args = Array.isArray(parsed) ? parsed : (parsed?.args || []);
+const result = (${functionName} as any)(...args);
 if (typeof result === 'boolean') {
   console.log(result ? 'true' : 'false');
+} else if (typeof result === 'number') {
+  console.log(Number.isFinite(result) ? String(parseFloat(result.toString())) : String(result));
+} else if (typeof result === 'string') {
+  console.log(result);
 } else {
-  console.log(typeof result === 'object' ? JSON.stringify(result) : result);
+  console.log(result === undefined ? '' : JSON.stringify(result));
 }
 `;
   }
@@ -169,13 +214,26 @@ line = sys.stdin.read().strip()
 if not line:
     sys.exit(0)
 
-input_data = json.loads(line)
-result = ${functionName}(*input_data)
+parsed = json.loads(line)
+if isinstance(parsed, list):
+  args = parsed
+elif isinstance(parsed, dict) and isinstance(parsed.get("args"), list):
+  args = parsed["args"]
+else:
+  args = [parsed]
+
+result = ${functionName}(*args)
 
 if isinstance(result, bool):
     print(str(result).lower())
+elif isinstance(result, (int, float)):
+    print(f"{result:g}")
+elif isinstance(result, str):
+    print(result)
 elif isinstance(result, (dict, list)):
     print(json.dumps(result, separators=(',', ':')))
+elif result is None:
+    print("null")
 else:
     print(result)
 `;
@@ -227,14 +285,33 @@ func convert(val interface{}, t reflect.Type) reflect.Value {
 }
 
 func main() {
-    var input []interface{}
+  var payload interface{}
     d := json.NewDecoder(os.Stdin)
     d.UseNumber()
-    _ = d.Decode(&input)
+
+  if err := d.Decode(&payload); err != nil {
+    fmt.Println("")
+    return
+  }
+
+  input := []interface{}{}
+  if arr, ok := payload.([]interface{}); ok {
+    input = arr
+  } else if obj, ok := payload.(map[string]interface{}); ok {
+    if args, ok := obj["args"].([]interface{}); ok {
+      input = args
+    }
+  } else if payload != nil {
+    input = []interface{}{payload}
+  }
 
     fn := reflect.ValueOf(${functionName})
     args := make([]reflect.Value, fn.Type().NumIn())
     for i := range args {
+    if i >= len(input) {
+      args[i] = reflect.Zero(fn.Type().In(i))
+      continue
+    }
         args[i] = convert(input[i], fn.Type().In(i))
     }
 
@@ -251,6 +328,11 @@ func main() {
     if s, ok := result.(string); ok {
         fmt.Println(s)
         return
+    }
+
+    if n, ok := result.(float64); ok {
+      fmt.Printf("%g\n", n)
+      return
     }
 
     out, _ := json.Marshal(result)
@@ -343,12 +425,14 @@ export const submitCode = async (
       : sourceCode;
 
     const preparedStdin = family ? normalizeFunctionInput(stdin) : stdin?.trim() || null;
+    const preparedExpectedOutput = normalizeExpectedOutput(expectedOutput);
 
     const payload = {
       source_code: base64Encode(wrappedSource),
       language_id: languageId,
       stdin: preparedStdin ? base64Encode(preparedStdin) : null,
-      expected_output: expectedOutput ? base64Encode(expectedOutput) : null,
+      expected_output:
+        preparedExpectedOutput !== null ? base64Encode(preparedExpectedOutput) : null,
     };
 
     const { token } = await createSubmission(payload);
