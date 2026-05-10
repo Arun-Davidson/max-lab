@@ -71,6 +71,28 @@ const DROPDOWN_LANGUAGE_LABELS: Record<string, string> = {
   typescript: "typescript",
 };
 
+const extractVersionTuple = (name?: string): number[] => {
+  if (!name) return [0];
+  const match = name.match(/\(([^)]+)\)/);
+  if (!match?.[1]) return [0];
+
+  const versionMatch = match[1].match(/(\d+(?:\.\d+)*)/);
+  if (!versionMatch?.[1]) return [0];
+
+  return versionMatch[1].split(".").map((part) => Number(part));
+};
+
+const compareVersionTuples = (a: number[], b: number[]): number => {
+  const maxLength = Math.max(a.length, b.length);
+  for (let i = 0; i < maxLength; i += 1) {
+    const left = a[i] ?? 0;
+    const right = b[i] ?? 0;
+    if (left > right) return 1;
+    if (left < right) return -1;
+  }
+  return 0;
+};
+
 const EditorPanel: React.FC<EditorPanelProps> = ({
   language,
   onLanguageChange,
@@ -81,10 +103,34 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
   allLanguages,
 }) => {
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const filteredLanguages = allLanguages.filter((lang) => {
-    const key = getDropdownLanguageKey(lang.name);
-    return !!key && !!DROPDOWN_LANGUAGE_LABELS[key];
-  });
+  const filteredLanguages = React.useMemo(() => {
+    const byKey = new Map<string, Language>();
+
+    allLanguages.forEach((lang) => {
+      const key = getDropdownLanguageKey(lang.name);
+      if (!key || !DROPDOWN_LANGUAGE_LABELS[key]) return;
+
+      const existing = byKey.get(key);
+      if (!existing) {
+        byKey.set(key, lang);
+        return;
+      }
+
+      const nextVersion = extractVersionTuple(lang.name);
+      const existingVersion = extractVersionTuple(existing.name);
+      const versionComparison = compareVersionTuples(nextVersion, existingVersion);
+
+      if (versionComparison > 0 || (versionComparison === 0 && lang.id > existing.id)) {
+        byKey.set(key, lang);
+      }
+    });
+
+    return Array.from(byKey.values()).sort((a, b) => {
+      const aKey = getDropdownLanguageKey(a.name) || "";
+      const bKey = getDropdownLanguageKey(b.name) || "";
+      return aKey.localeCompare(bKey);
+    });
+  }, [allLanguages]);
 
   useEffect(() => {
     if (!isFullscreen) return;
