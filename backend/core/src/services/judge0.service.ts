@@ -393,7 +393,19 @@ const pollSubmission = async (token: string): Promise<Judge0Result> => {
 
     const result = response.data as Judge0Result;
     if (isTerminalStatus(result?.status?.id)) {
-      return decodeJudge0Result(result);
+      const decoded = decodeJudge0Result(result);
+      console.log('[Judge0] Terminal submission response', {
+        token,
+        statusId: decoded.status?.id,
+        statusDescription: decoded.status?.description,
+        stdout: decoded.stdout,
+        stderr: decoded.stderr,
+        compile_output: decoded.compile_output,
+        message: decoded.message,
+        time: decoded.time,
+        memory: decoded.memory,
+      });
+      return decoded;
     }
 
     await delay(JUDGE0_POLL_INTERVAL_MS);
