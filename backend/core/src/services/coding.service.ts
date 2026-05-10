@@ -419,6 +419,21 @@ export const processSubmission = async (
         testcase.dataValues.expectedOutput,
       );
 
+      console.log('[Judge0][processSubmission] Testcase response', {
+        problemId,
+        testcaseId: testcase.id,
+        input: testcase.dataValues.input,
+        expectedOutput: testcase.dataValues.expectedOutput,
+        statusId: res.status?.id,
+        status: res.status?.description,
+        stdout: res.stdout,
+        stderr: res.stderr,
+        compile_output: res.compile_output,
+        message: res.message,
+        time: res.time,
+        memory: res.memory,
+      });
+
       results.push({
         testcaseId: testcase.id,
         statusId: res.status.id,
@@ -505,6 +520,21 @@ export const runTestcases = async (problemId: number, code: string, languageId: 
         testcase.dataValues.input,
         testcase.dataValues.expectedOutput,
       );
+
+      console.log('[Judge0][runTestcases] Testcase response', {
+        problemId,
+        testcaseId: testcase.id,
+        input: testcase.dataValues.input,
+        expectedOutput: testcase.dataValues.expectedOutput,
+        statusId: res.status?.id,
+        status: res.status?.description,
+        stdout: res.stdout,
+        stderr: res.stderr,
+        compile_output: res.compile_output,
+        message: res.message,
+        time: res.time,
+        memory: res.memory,
+      });
 
       results.push({
         testcaseId: testcase.id,
