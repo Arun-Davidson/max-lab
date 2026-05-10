@@ -9,7 +9,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { SupportedLanguage } from "@/types/coding";
 import { Language } from "@/app/queries/assessmentApi";
 import {
   Settings,
@@ -53,6 +52,25 @@ const getMonacoLanguage = (name?: string): string => {
   return normalized;
 };
 
+const getDropdownLanguageKey = (name?: string): string | null => {
+  if (!name) return null;
+  const normalized = name.toLowerCase().trim();
+  if (normalized.startsWith("javascript")) return "javascript";
+  if (normalized.startsWith("typescript")) return "typescript";
+  if (normalized.startsWith("python")) return "python";
+  if (normalized.startsWith("java") && !normalized.startsWith("javascript")) return "java";
+  if (normalized.startsWith("go ") || normalized.startsWith("go(")) return "go";
+  return null;
+};
+
+const DROPDOWN_LANGUAGE_LABELS: Record<string, string> = {
+  go: "Go",
+  java: "Java",
+  javascript: "Javascript",
+  python: "Python",
+  typescript: "typescript",
+};
+
 const EditorPanel: React.FC<EditorPanelProps> = ({
   language,
   onLanguageChange,
@@ -63,6 +81,11 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
   allLanguages,
 }) => {
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const filteredLanguages = allLanguages.filter((lang) => {
+    const key = getDropdownLanguageKey(lang.name);
+    return !!key && !!DROPDOWN_LANGUAGE_LABELS[key];
+  });
+
   useEffect(() => {
     if (!isFullscreen) return;
     const handleEsc = (e: KeyboardEvent) => {
@@ -136,7 +159,7 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
           <Select
             value={language?.id.toString()}
             onValueChange={(val) => {
-              const selected = allLanguages.find((l) => l.id.toString() === val);
+              const selected = filteredLanguages.find((l) => l.id.toString() === val);
               if (selected) onLanguageChange(selected);
             }}
           >
@@ -144,11 +167,16 @@ const EditorPanel: React.FC<EditorPanelProps> = ({
               <SelectValue placeholder="Select Language" />
             </SelectTrigger>
             <SelectContent>
-              {allLanguages.map((lang) => (
-                <SelectItem key={lang.id} value={lang.id.toString()}>
-                  {lang.name}
-                </SelectItem>
-              ))}
+              {filteredLanguages.map((lang) => {
+                const key = getDropdownLanguageKey(lang.name);
+                const label = key ? DROPDOWN_LANGUAGE_LABELS[key] : lang.name;
+
+                return (
+                  <SelectItem key={lang.id} value={lang.id.toString()}>
+                    {label}
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
 
