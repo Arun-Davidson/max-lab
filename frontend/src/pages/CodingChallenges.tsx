@@ -83,8 +83,8 @@ async function detectMultipleMonitors(): Promise<boolean> {
 // Deleted sampleProblem - Loading from API instead
 
 // --- Helper Functions ---
-const getLanguageId = (langObj?: Language): number => {
-  return langObj?.id || 63; // Fallback to 63 (JS) if not provided
+const getLanguageId = (langObj?: Language): number | null => {
+  return typeof langObj?.id === "number" ? langObj.id : null;
 };
 
 const getLanguageKey = (name?: string): string => {
@@ -394,8 +394,12 @@ const CodingChallenge: React.FC = () => {
     const unsubmitted = problems.filter(
       (p) => !submittedProblemIdsRef.current.has(p.id),
     );
+    const languageId = getLanguageId(language);
 
     if (unsubmitted.length > 0) {
+      if (languageId === null) {
+        toast.error("Could not auto-submit remaining problems: no valid language selected.");
+      } else {
       toast.info(
         `Auto-submitting ${unsubmitted.length} remaining problem(s)...`,
       );
@@ -417,7 +421,7 @@ const CodingChallenge: React.FC = () => {
             await submitSolution({
               problemId: Number(problem.id),
               code: savedCode, // empty string or baseCode → backend marks as failed
-              languageId: getLanguageId(language),
+              languageId,
               testId: Number(testId),
             }).unwrap();
             submittedProblemIdsRef.current.add(problem.id);
@@ -426,6 +430,7 @@ const CodingChallenge: React.FC = () => {
           }
         }),
       );
+      }
     }
 
     const success = await performCleanup();
@@ -710,6 +715,14 @@ const CodingChallenge: React.FC = () => {
   const handleRunCode = async () => {
     if (!currentProblem) return;
 
+    const languageId = getLanguageId(language);
+    if (languageId === null) {
+      const message = "Please select a valid language before running code.";
+      setError(message);
+      toast.error(message);
+      return;
+    }
+
     setIsRunningCode(true);
     setError(undefined);
     setTestCases([]); // Clear previous results while running
@@ -724,7 +737,7 @@ const CodingChallenge: React.FC = () => {
       const result = await runTestCases({
         problemId: Number(currentProblem.id),
         code: code,
-        languageId: getLanguageId(language),
+        languageId,
       }).unwrap();
 
       if (result.success) {
@@ -752,6 +765,14 @@ const CodingChallenge: React.FC = () => {
   const handleSubmitProblem = async (autoAdvance = false) => {
     if (!currentProblem) return;
 
+    const languageId = getLanguageId(language);
+    if (languageId === null) {
+      const message = "Please select a valid language before submitting.";
+      setError(message);
+      toast.error(message);
+      return;
+    }
+
     setIsSubmitting(true);
     setError(undefined);
 
@@ -771,7 +792,7 @@ const CodingChallenge: React.FC = () => {
       const result = await submitSolution({
         problemId: Number(currentProblem.id),
         code: code,
-        languageId: getLanguageId(language),
+        languageId,
         testId: Number(testId),
       }).unwrap();
 
@@ -821,6 +842,14 @@ const CodingChallenge: React.FC = () => {
   const handleSubmitAndEndTest = async () => {
     if (!currentProblem) return;
 
+    const languageId = getLanguageId(language);
+    if (languageId === null) {
+      const message = "Please select a valid language before submitting.";
+      setError(message);
+      toast.error(message);
+      return;
+    }
+
     setIsSubmitting(true);
     setError(undefined);
 
@@ -829,7 +858,7 @@ const CodingChallenge: React.FC = () => {
       await submitSolution({
         problemId: Number(currentProblem.id),
         code: code,
-        languageId: getLanguageId(language),
+        languageId,
         testId: Number(testId),
       }).unwrap();
 
