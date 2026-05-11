@@ -175,6 +175,33 @@ const resolveExecutionMode = (
   return 'program';
 };
 
+const validateFunctionModeSource = (
+  sourceCode: string,
+  family: LanguageFamily,
+): void => {
+  if (family === 'javascript' || family === 'typescript') {
+    if (hasProgramEntrypoint(sourceCode, family)) {
+      throw new Error(
+        `Function-only submission required for ${family}. Remove program entrypoint/stdin handling and submit only the target function.`,
+      );
+    }
+  }
+
+  if (family === 'go') {
+    if (/^\s*package\s+main\b/m.test(sourceCode) || /^\s*import\s*\(/m.test(sourceCode)) {
+      throw new Error(
+        'Function-only submission required for go. Remove package/import declarations and submit only the target function.',
+      );
+    }
+
+    if (/^\s*func\s+main\s*\(/m.test(sourceCode) || hasProgramEntrypoint(sourceCode, family)) {
+      throw new Error(
+        'Function-only submission required for go. Remove main/stdin program logic and submit only the target function.',
+      );
+    }
+  }
+};
+
 const normalizeNumberString = (value: number): string => {
   if (!Number.isFinite(value)) return String(value);
   if (Number.isInteger(value)) return String(value);
@@ -233,12 +260,14 @@ ${sourceCode}
 const line = require('fs').readFileSync('/dev/stdin', 'utf8').trim();
 if (!line) process.exit(0);
 const parsed = JSON.parse(line);
-const args = Array.isArray(parsed) ? parsed : (parsed?.args || []);
+const args = Array.isArray(parsed)
+  ? parsed
+  : (parsed && Array.isArray(parsed.args) ? parsed.args : []);
 const result = ${functionName}(...args);
 if (typeof result === 'boolean') {
   console.log(result ? 'true' : 'false');
 } else if (typeof result === 'number') {
-  console.log(Number.isFinite(result) ? String(parseFloat(result.toString())) : String(result));
+  console.log(isFinite(result) ? String(parseFloat(result.toString())) : String(result));
 } else if (typeof result === 'string') {
   console.log(result);
 } else {
@@ -254,13 +283,16 @@ declare const process: any;
 ${sourceCode}
 const line = require('fs').readFileSync('/dev/stdin', 'utf8').trim();
 if (!line) process.exit(0);
-const parsed = JSON.parse(line);
-const args = Array.isArray(parsed) ? parsed : (parsed?.args || []);
+const parsed: any = JSON.parse(line);
+const args = Array.isArray(parsed)
+  ? parsed
+  : (parsed && Array.isArray(parsed.args) ? parsed.args : []);
 const result = (${functionName} as any)(...args);
 if (typeof result === 'boolean') {
   console.log(result ? 'true' : 'false');
 } else if (typeof result === 'number') {
-  console.log(Number.isFinite(result) ? String(parseFloat(result.toString())) : String(result));
+  const numericResult = result as number;
+  console.log(isFinite(numericResult) ? String(parseFloat(numericResult.toString())) : String(numericResult));
 } else if (typeof result === 'string') {
   console.log(result);
 } else {
@@ -397,7 +429,7 @@ func main() {
     }
 
     if n, ok := result.(float64); ok {
-      fmt.Printf("%g\n", n)
+      fmt.Printf("%g\\n", n)
       return
     }
 
@@ -491,8 +523,19 @@ export const submitCode = async (
 ): Promise<Judge0Result> => {
   try {
     const family = getLanguageFamily(languageId);
-    const functionName = family ? extractFunctionName(sourceCode) : '';
-    const mode = resolveExecutionMode(sourceCode, family, functionName);
+    if (!family) {
+      throw new Error(`Unsupported or unmapped language_id=${languageId}.`);
+    }
+
+    const shouldUseFunctionMode = FUNCTION_WRAPPER_FAMILIES.has(family);
+    const functionName = shouldUseFunctionMode ? extractFunctionName(sourceCode) : '';
+    const mode: ExecutionMode = shouldUseFunctionMode
+      ? 'function'
+      : resolveExecutionMode(sourceCode, family, functionName);
+
+    if (mode === 'function') {
+      validateFunctionModeSource(sourceCode, family);
+    }
 
     if (mode === 'function' && !functionName) {
       throw new Error(
