@@ -22,6 +22,7 @@ const JUDGE0_POLL_TIMEOUT_MS = 25000;
 const JUDGE0_MAX_RETRIES = 2;
 
 type ExecutionMode = 'function' | 'program';
+type JavaSourceShape = 'program' | 'class' | 'method';
 type LanguageFamily =
   | 'javascript'
   | 'typescript'
@@ -247,6 +248,393 @@ const normalizeFunctionInput = (stdin?: string): string | null => {
   }
 
   return JSON.stringify({ args });
+};
+
+const parseFunctionArgs = (stdin?: string): unknown[] => {
+  if (!stdin) return [];
+  const trimmed = stdin.trim();
+  if (!trimmed) return [];
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    return [parsed];
+  } catch {
+    try {
+      const variadic = JSON.parse(`[${trimmed}]`);
+      return Array.isArray(variadic) ? variadic : [variadic];
+    } catch {
+      return [trimmed];
+    }
+  }
+};
+
+type JavaMethodInfo = {
+  name: string;
+  returnType: string;
+  paramTypes: string[];
+  isStatic: boolean;
+};
+
+const classifyJavaSourceShape = (sourceCode: string): JavaSourceShape => {
+  if (/\bstatic\s+void\s+main\s*\(/m.test(sourceCode)) {
+    return 'program';
+  }
+
+  if (/\bclass\s+[A-Za-z_$][\w$]*\b/m.test(sourceCode)) {
+    return 'class';
+  }
+
+  return 'method';
+};
+
+const normalizeJavaType = (type: string): string =>
+  type
+    .replace(/\b(final|volatile|transient)\b/g, '')
+    .replace(/\s+/g, ' ')
+    .replace(/\s*\[\s*\]/g, '[]')
+    .trim();
+
+const parseJavaParameterTypes = (paramsBlock: string): string[] => {
+  const trimmed = paramsBlock.trim();
+  if (!trimmed) return [];
+
+  return trimmed
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => {
+      const withoutAnnotations = part.replace(/@[A-Za-z_$][\w$]*(\([^)]*\))?\s*/g, '').trim();
+      const varArgNormalized = withoutAnnotations.replace(/\.\.\./g, '[]');
+      const match = varArgNormalized.match(/^(.*\S)\s+[A-Za-z_$][\w$]*$/);
+      if (!match) {
+        throw new Error(`Unsupported Java parameter declaration: "${part}"`);
+      }
+      return normalizeJavaType(match[1]);
+    });
+};
+
+const extractJavaCallableMethod = (sourceCode: string): JavaMethodInfo | null => {
+  const methodRegex =
+    /(?:^|\n)\s*(public|protected|private)?\s*(static\s+)?(?:final\s+)?([A-Za-z_$][\w$<>,\[\]\s?.]*)\s+([A-Za-z_$][\w$]*)\s*\(([^)]*)\)\s*\{/g;
+
+  let match: RegExpExecArray | null;
+  while ((match = methodRegex.exec(sourceCode)) !== null) {
+    const methodName = match[4];
+    if (methodName === 'main') continue;
+
+    const returnType = normalizeJavaType(match[3]);
+    const paramTypes = parseJavaParameterTypes(match[5]);
+
+    return {
+      name: methodName,
+      returnType,
+      paramTypes,
+      isStatic: Boolean(match[2]),
+    };
+  }
+
+  return null;
+};
+
+const renamePrimaryJavaClassToMain = (sourceCode: string): string => {
+  let updated = sourceCode;
+
+  const publicClassMatch = updated.match(/\bpublic\s+class\s+([A-Za-z_$][\w$]*)\b/);
+  if (publicClassMatch?.[1] && publicClassMatch[1] !== 'Main') {
+    const className = publicClassMatch[1];
+    const classPattern = new RegExp(`\\bpublic\\s+class\\s+${className}\\b`);
+    return updated.replace(classPattern, 'public class Main');
+  }
+
+  const classMatch = updated.match(/\bclass\s+([A-Za-z_$][\w$]*)\b/);
+  if (classMatch?.[1] && classMatch[1] !== 'Main') {
+    const className = classMatch[1];
+    const classPattern = new RegExp(`\\bclass\\s+${className}\\b`);
+    updated = updated.replace(classPattern, 'public class Main');
+  }
+
+  return updated;
+};
+
+const findMainClassBounds = (sourceCode: string): { openBraceIndex: number; closeBraceIndex: number } | null => {
+  const classPattern = /\bclass\s+Main\b[^\{]*\{/m;
+  const match = classPattern.exec(sourceCode);
+  if (!match) return null;
+
+  const openBraceIndex = sourceCode.indexOf('{', match.index);
+  if (openBraceIndex === -1) return null;
+
+  let depth = 0;
+  for (let i = openBraceIndex; i < sourceCode.length; i += 1) {
+    const ch = sourceCode[i];
+    if (ch === '{') depth += 1;
+    if (ch === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        return { openBraceIndex, closeBraceIndex: i };
+      }
+    }
+  }
+
+  return null;
+};
+
+const escapeJavaString = (value: string): string =>
+  value
+    .replace(/\\/g, '\\\\')
+    .replace(/\"/g, '\\"')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/\t/g, '\\t');
+
+const escapeJavaChar = (value: string): string => {
+  if (value === "'") return "\\'";
+  if (value === '\\') return '\\\\';
+  if (value === '\n') return '\\n';
+  if (value === '\r') return '\\r';
+  if (value === '\t') return '\\t';
+  return value;
+};
+
+const buildJavaArgumentLiteral = (value: unknown, type: string, path: string): string => {
+  const normalizedType = normalizeJavaType(type);
+
+  if (normalizedType.endsWith('[]')) {
+    if (!Array.isArray(value)) {
+      throw new Error(`Java wrapper arg mismatch at ${path}: expected array for ${normalizedType}.`);
+    }
+
+    const elementType = normalizedType.slice(0, -2);
+    const elements = value.map((item, index) =>
+      buildJavaArgumentLiteral(item, elementType, `${path}[${index}]`),
+    );
+
+    return `new ${normalizedType}{${elements.join(', ')}}`;
+  }
+
+  if (normalizedType === 'String') {
+    if (typeof value !== 'string') {
+      throw new Error(`Java wrapper arg mismatch at ${path}: expected String.`);
+    }
+    return `"${escapeJavaString(value)}"`;
+  }
+
+  if (normalizedType === 'char' || normalizedType === 'Character') {
+    if (typeof value !== 'string' || value.length !== 1) {
+      throw new Error(`Java wrapper arg mismatch at ${path}: expected single-character string for ${normalizedType}.`);
+    }
+    return `'${escapeJavaChar(value)}'`;
+  }
+
+  if (normalizedType === 'boolean' || normalizedType === 'Boolean') {
+    if (typeof value !== 'boolean') {
+      throw new Error(`Java wrapper arg mismatch at ${path}: expected boolean.`);
+    }
+    return value ? 'true' : 'false';
+  }
+
+  if (
+    normalizedType === 'int' ||
+    normalizedType === 'Integer' ||
+    normalizedType === 'long' ||
+    normalizedType === 'Long' ||
+    normalizedType === 'short' ||
+    normalizedType === 'Short' ||
+    normalizedType === 'byte' ||
+    normalizedType === 'Byte'
+  ) {
+    if (typeof value !== 'number' || !Number.isFinite(value) || !Number.isInteger(value)) {
+      throw new Error(`Java wrapper arg mismatch at ${path}: expected integer for ${normalizedType}.`);
+    }
+    if (normalizedType === 'long' || normalizedType === 'Long') {
+      return `${value}L`;
+    }
+    return `${value}`;
+  }
+
+  if (
+    normalizedType === 'double' ||
+    normalizedType === 'Double' ||
+    normalizedType === 'float' ||
+    normalizedType === 'Float'
+  ) {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      throw new Error(`Java wrapper arg mismatch at ${path}: expected number for ${normalizedType}.`);
+    }
+    if (normalizedType === 'float' || normalizedType === 'Float') {
+      return `${value}f`;
+    }
+    return `${value}`;
+  }
+
+  if (normalizedType.startsWith('List<') || normalizedType.startsWith('java.util.List<')) {
+    if (!Array.isArray(value)) {
+      throw new Error(`Java wrapper arg mismatch at ${path}: expected JSON array for ${normalizedType}.`);
+    }
+    const innerMatch = normalizedType.match(/List<(.+)>$/);
+    if (!innerMatch?.[1]) {
+      throw new Error(`Java wrapper does not support generic type ${normalizedType}.`);
+    }
+    const innerType = innerMatch[1].trim();
+    const items = value.map((item, index) =>
+      buildJavaArgumentLiteral(item, innerType, `${path}[${index}]`),
+    );
+    return `java.util.Arrays.asList(${items.join(', ')})`;
+  }
+
+  if (normalizedType === 'Object') {
+    if (value === null) return 'null';
+    if (typeof value === 'string') return `"${escapeJavaString(value)}"`;
+    if (typeof value === 'boolean') return value ? 'true' : 'false';
+    if (typeof value === 'number') return Number.isInteger(value) ? `${value}` : `${value}d`;
+    throw new Error(`Java wrapper arg mismatch at ${path}: unsupported Object literal.`);
+  }
+
+  throw new Error(`Java wrapper does not support parameter type ${normalizedType} at ${path}.`);
+};
+
+const buildJavaRunnerMethods = (callExpression: string, returnType: string): string => {
+  const invokeStatement =
+    normalizeJavaType(returnType) === 'void'
+      ? `${callExpression};\n      return;`
+      : `Object __result = ${callExpression};\n      System.out.println(__formatResult(__result, false));`;
+
+  return `
+  public static void main(String[] args) {
+    try {
+      ${invokeStatement}
+    } catch (Exception e) {
+      System.out.println("runtime error: " + e.getMessage());
+    }
+  }
+
+  private static String __formatResult(Object value, boolean nested) {
+    if (value == null) return nested ? "null" : "null";
+
+    if (value instanceof Boolean) {
+      return ((Boolean) value) ? "true" : "false";
+    }
+
+    if (value instanceof Float || value instanceof Double) {
+      double d = ((Number) value).doubleValue();
+      if (Double.isFinite(d) && Math.rint(d) == d) {
+        return String.valueOf((long) d);
+      }
+      return java.math.BigDecimal.valueOf(d).stripTrailingZeros().toPlainString();
+    }
+
+    if (value instanceof Number) {
+      return String.valueOf(value);
+    }
+
+    if (value instanceof Character) {
+      String s = String.valueOf(value);
+      return nested ? "\\\"" + __escapeJson(s) + "\\\"" : s;
+    }
+
+    if (value instanceof String) {
+      String s = (String) value;
+      return nested ? "\\\"" + __escapeJson(s) + "\\\"" : s;
+    }
+
+    Class<?> cls = value.getClass();
+    if (cls.isArray()) {
+      int len = java.lang.reflect.Array.getLength(value);
+      StringBuilder sb = new StringBuilder();
+      sb.append("[");
+      for (int i = 0; i < len; i++) {
+        if (i > 0) sb.append(",");
+        Object item = java.lang.reflect.Array.get(value, i);
+        sb.append(__formatResult(item, true));
+      }
+      sb.append("]");
+      return sb.toString();
+    }
+
+    if (value instanceof java.lang.Iterable) {
+      StringBuilder sb = new StringBuilder();
+      sb.append("[");
+      boolean first = true;
+      for (Object item : (java.lang.Iterable<?>) value) {
+        if (!first) sb.append(",");
+        sb.append(__formatResult(item, true));
+        first = false;
+      }
+      sb.append("]");
+      return sb.toString();
+    }
+
+    return String.valueOf(value);
+  }
+
+  private static String __escapeJson(String value) {
+    return value
+      .replace("\\\\", "\\\\\\\\")
+      .replace("\"", "\\\\\"")
+      .replace("\n", "\\\\n")
+      .replace("\r", "\\\\r")
+      .replace("\t", "\\\\t");
+  }
+`;
+};
+
+const injectIntoMainClass = (sourceCode: string, injectionCode: string): string => {
+  const bounds = findMainClassBounds(sourceCode);
+  if (!bounds) {
+    throw new Error('Java wrapper could not locate class Main for injection.');
+  }
+
+  return `${sourceCode.slice(0, bounds.closeBraceIndex)}\n${injectionCode}\n${sourceCode.slice(
+    bounds.closeBraceIndex,
+  )}`;
+};
+
+const buildJavaWrappedSubmission = (
+  sourceCode: string,
+  stdin?: string,
+): { wrappedSource: string; mode: ExecutionMode; preparedStdin: string | null } => {
+  const shape = classifyJavaSourceShape(sourceCode);
+
+  if (shape === 'program') {
+    return {
+      wrappedSource: renamePrimaryJavaClassToMain(sourceCode),
+      mode: 'program',
+      preparedStdin: stdin?.trim() || null,
+    };
+  }
+
+  const normalizedSource =
+    shape === 'method'
+      ? `public class Main {\n${sourceCode}\n}`
+      : renamePrimaryJavaClassToMain(sourceCode);
+
+  const methodInfo = extractJavaCallableMethod(normalizedSource);
+  if (!methodInfo) {
+    throw new Error('Java wrapper could not detect a callable method. Submit a valid method or class implementation.');
+  }
+
+  const parsedArgs = parseFunctionArgs(stdin);
+  if (parsedArgs.length !== methodInfo.paramTypes.length) {
+    throw new Error(
+      `Java wrapper arg mismatch: expected ${methodInfo.paramTypes.length} args, got ${parsedArgs.length}.`,
+    );
+  }
+
+  const argLiterals = parsedArgs.map((arg, index) =>
+    buildJavaArgumentLiteral(arg, methodInfo.paramTypes[index], `args[${index}]`),
+  );
+
+  const callExpression = methodInfo.isStatic
+    ? `${methodInfo.name}(${argLiterals.join(', ')})`
+    : `new Main().${methodInfo.name}(${argLiterals.join(', ')})`;
+
+  const runnerCode = buildJavaRunnerMethods(callExpression, methodInfo.returnType);
+
+  return {
+    wrappedSource: injectIntoMainClass(normalizedSource, runnerCode),
+    mode: 'function',
+    preparedStdin: null,
+  };
 };
 
 const buildWrappedSourceCode = (
@@ -824,6 +1212,42 @@ export const submitCode = async (
     const family = getLanguageFamily(languageId);
     if (!family) {
       throw new Error(`Unsupported or unmapped language_id=${languageId}.`);
+    }
+
+    if (family === 'java') {
+      const javaPrepared = buildJavaWrappedSubmission(sourceCode, stdin);
+      const preparedExpectedOutput = normalizeExpectedOutput(expectedOutput);
+
+      const payload = {
+        source_code: base64Encode(javaPrepared.wrappedSource),
+        language_id: languageId,
+        stdin: javaPrepared.preparedStdin ? base64Encode(javaPrepared.preparedStdin) : null,
+        expected_output:
+          preparedExpectedOutput !== null ? base64Encode(preparedExpectedOutput) : null,
+      };
+
+      console.log('[Judge0] Params passed to Judge0', {
+        language_id: languageId,
+        family,
+        mode: javaPrepared.mode,
+        stdin: previewForLog(javaPrepared.preparedStdin),
+        expected_output: previewForLog(preparedExpectedOutput),
+        source_code_preview: previewForLog(javaPrepared.wrappedSource),
+        source_code_length: javaPrepared.wrappedSource.length,
+        stdin_length: javaPrepared.preparedStdin?.length ?? 0,
+        expected_output_length: preparedExpectedOutput?.length ?? 0,
+      });
+
+      logger.info('[Judge0] Submission payload prepared', {
+        languageId,
+        family,
+        mode: javaPrepared.mode,
+        hasStdin: !!javaPrepared.preparedStdin,
+        hasExpectedOutput: preparedExpectedOutput !== null,
+      });
+
+      const { token } = await createSubmission(payload);
+      return await pollSubmission(token);
     }
 
     const shouldUseFunctionMode = FUNCTION_WRAPPER_FAMILIES.has(family);
