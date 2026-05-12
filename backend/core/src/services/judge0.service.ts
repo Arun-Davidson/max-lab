@@ -342,53 +342,327 @@ package main
 
 import (
     "encoding/json"
+    "errors"
     "fmt"
     "os"
     "reflect"
+    "strconv"
+    "strings"
+    "unicode/utf8"
 )
 
 ${sourceCode}
 
-func convert(val interface{}, t reflect.Type) reflect.Value {
+  func convert(path string, val interface{}, t reflect.Type) (reflect.Value, error) {
     if val == nil {
-        return reflect.Zero(t)
+      if t.Kind() == reflect.Ptr || t.Kind() == reflect.Interface || t.Kind() == reflect.Map || t.Kind() == reflect.Slice {
+        return reflect.Zero(t), nil
+      }
+      return reflect.Value{}, fmt.Errorf("%s: null provided for non-nullable %s", path, t.String())
     }
+
     if t.Kind() == reflect.Ptr {
-        p := reflect.New(t.Elem())
-        p.Elem().Set(convert(val, t.Elem()))
-        return p
+      elem, err := convert(path, val, t.Elem())
+      if err != nil {
+        return reflect.Value{}, err
+      }
+      p := reflect.New(t.Elem())
+      p.Elem().Set(elem)
+      return p, nil
     }
+
+    if t.Kind() == reflect.Interface {
+      v := reflect.ValueOf(val)
+      if !v.IsValid() {
+        return reflect.Zero(t), nil
+      }
+      if v.Type().AssignableTo(t) {
+        return v, nil
+      }
+      if v.Type().ConvertibleTo(t) {
+        return v.Convert(t), nil
+      }
+      return v, nil
+    }
+
     switch t.Kind() {
     case reflect.Slice:
-        arr := val.([]interface{})
-        s := reflect.MakeSlice(t, len(arr), len(arr))
-        for i, v := range arr {
-            s.Index(i).Set(convert(v, t.Elem()))
+      if s, ok := val.(string); ok && t.Elem().Kind() == reflect.Uint8 {
+        return reflect.ValueOf([]byte(s)).Convert(t), nil
+      }
+
+      arr, ok := val.([]interface{})
+      if !ok {
+        return reflect.Value{}, fmt.Errorf("%s: expected array for %s, got %T", path, t.String(), val)
+      }
+
+      s := reflect.MakeSlice(t, len(arr), len(arr))
+      for i, v := range arr {
+        converted, err := convert(fmt.Sprintf("%s[%d]", path, i), v, t.Elem())
+        if err != nil {
+          return reflect.Value{}, err
         }
-        return s
+        s.Index(i).Set(converted)
+      }
+      return s, nil
+
     case reflect.Map:
-        m := reflect.MakeMap(t)
-        for k, v := range val.(map[string]interface{}) {
-            m.SetMapIndex(convert(k, t.Key()), convert(v, t.Elem()))
+      if t.Key().Kind() != reflect.String {
+        return reflect.Value{}, fmt.Errorf("%s: unsupported map key type %s", path, t.Key().String())
+      }
+
+      obj, ok := val.(map[string]interface{})
+      if !ok {
+        return reflect.Value{}, fmt.Errorf("%s: expected object for %s, got %T", path, t.String(), val)
+      }
+
+      m := reflect.MakeMapWithSize(t, len(obj))
+      for k, v := range obj {
+        key := reflect.ValueOf(k).Convert(t.Key())
+        converted, err := convert(fmt.Sprintf("%s.%s", path, k), v, t.Elem())
+        if err != nil {
+          return reflect.Value{}, err
         }
-        return m
+        m.SetMapIndex(key, converted)
+      }
+      return m, nil
+
     case reflect.String:
-        return reflect.ValueOf(val.(string))
+      s, ok := val.(string)
+      if !ok {
+        return reflect.Value{}, fmt.Errorf("%s: expected string, got %T", path, val)
+      }
+      return reflect.ValueOf(s).Convert(t), nil
+
     case reflect.Bool:
-        return reflect.ValueOf(val.(bool))
+      b, ok := val.(bool)
+      if !ok {
+        return reflect.Value{}, fmt.Errorf("%s: expected bool, got %T", path, val)
+      }
+      return reflect.ValueOf(b).Convert(t), nil
+
+    case reflect.Uint8:
+      if s, ok := val.(string); ok {
+        if utf8.RuneCountInString(s) != 1 {
+          return reflect.Value{}, fmt.Errorf("%s: expected single-character string for byte, got %q", path, s)
+        }
+        return reflect.ValueOf(s[0]).Convert(t), nil
+      }
+      u, err := parseUnsigned(path, val, 8)
+      if err != nil {
+        return reflect.Value{}, err
+      }
+      rv := reflect.New(t).Elem()
+      if rv.OverflowUint(u) {
+        return reflect.Value{}, fmt.Errorf("%s: value %d overflows %s", path, u, t.String())
+      }
+      rv.SetUint(u)
+      return rv, nil
+
+    case reflect.Int32:
+      if s, ok := val.(string); ok {
+        if utf8.RuneCountInString(s) != 1 {
+          return reflect.Value{}, fmt.Errorf("%s: expected single-character string for rune/int32, got %q", path, s)
+        }
+        r, _ := utf8.DecodeRuneInString(s)
+        rv := reflect.New(t).Elem()
+        rv.SetInt(int64(r))
+        return rv, nil
+      }
+      i, err := parseSigned(path, val, 32)
+      if err != nil {
+        return reflect.Value{}, err
+      }
+      rv := reflect.New(t).Elem()
+      if rv.OverflowInt(i) {
+        return reflect.Value{}, fmt.Errorf("%s: value %d overflows %s", path, i, t.String())
+      }
+      rv.SetInt(i)
+      return rv, nil
+
+    case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int64:
+      i, err := parseSigned(path, val, int(t.Bits()))
+      if err != nil {
+        return reflect.Value{}, err
+      }
+      rv := reflect.New(t).Elem()
+      if rv.OverflowInt(i) {
+        return reflect.Value{}, fmt.Errorf("%s: value %d overflows %s", path, i, t.String())
+      }
+      rv.SetInt(i)
+      return rv, nil
+
+    case reflect.Uint, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+      u, err := parseUnsigned(path, val, int(t.Bits()))
+      if err != nil {
+        return reflect.Value{}, err
+      }
+      rv := reflect.New(t).Elem()
+      if rv.OverflowUint(u) {
+        return reflect.Value{}, fmt.Errorf("%s: value %d overflows %s", path, u, t.String())
+      }
+      rv.SetUint(u)
+      return rv, nil
+
+    case reflect.Float32, reflect.Float64:
+      f, err := parseFloat(path, val, int(t.Bits()))
+      if err != nil {
+        return reflect.Value{}, err
+      }
+      rv := reflect.New(t).Elem()
+      if rv.OverflowFloat(f) {
+        return reflect.Value{}, fmt.Errorf("%s: value %v overflows %s", path, f, t.String())
+      }
+      rv.SetFloat(f)
+      return rv, nil
+    }
+
+    v := reflect.ValueOf(val)
+    if v.IsValid() && v.Type().ConvertibleTo(t) {
+      return v.Convert(t), nil
+    }
+    return reflect.Value{}, fmt.Errorf("%s: unsupported conversion from %T to %s", path, val, t.String())
+  }
+
+  func parseFloat(path string, val interface{}, bits int) (float64, error) {
+    switch n := val.(type) {
+    case json.Number:
+      f, err := n.Float64()
+      if err != nil {
+        return 0, fmt.Errorf("%s: invalid numeric value %q", path, n.String())
+      }
+      return f, nil
+    case float64:
+      return n, nil
+    case float32:
+      return float64(n), nil
+    case int:
+      return float64(n), nil
+    case int8:
+      return float64(n), nil
+    case int16:
+      return float64(n), nil
+    case int32:
+      return float64(n), nil
+    case int64:
+      return float64(n), nil
+    case uint:
+      return float64(n), nil
+    case uint8:
+      return float64(n), nil
+    case uint16:
+      return float64(n), nil
+    case uint32:
+      return float64(n), nil
+    case uint64:
+      return float64(n), nil
+    case string:
+      f, err := strconv.ParseFloat(strings.TrimSpace(n), bits)
+      if err != nil {
+        return 0, fmt.Errorf("%s: expected numeric value, got %q", path, n)
+      }
+      return f, nil
     default:
-        n, _ := val.(json.Number).Float64()
-        return reflect.ValueOf(n).Convert(t)
+      return 0, fmt.Errorf("%s: expected numeric value, got %T", path, val)
+    }
+  }
+
+  func parseSigned(path string, val interface{}, bits int) (int64, error) {
+    switch n := val.(type) {
+    case json.Number:
+      raw := strings.TrimSpace(n.String())
+      if strings.ContainsAny(raw, ".eE") {
+        return 0, fmt.Errorf("%s: fractional value %q cannot be used as integer", path, raw)
+      }
+      i, err := strconv.ParseInt(raw, 10, bits)
+      if err != nil {
+        return 0, fmt.Errorf("%s: integer out of range for %d-bit signed: %q", path, bits, raw)
+      }
+      return i, nil
+    case string:
+      raw := strings.TrimSpace(n)
+      if raw == "" {
+        return 0, errors.New(path + ": empty string cannot be used as integer")
+      }
+      if strings.ContainsAny(raw, ".eE") {
+        return 0, fmt.Errorf("%s: fractional value %q cannot be used as integer", path, raw)
+      }
+      i, err := strconv.ParseInt(raw, 10, bits)
+      if err != nil {
+        return 0, fmt.Errorf("%s: integer out of range for %d-bit signed: %q", path, bits, raw)
+      }
+      return i, nil
+    default:
+      f, err := parseFloat(path, val, 64)
+      if err != nil {
+        return 0, err
+      }
+      if f != float64(int64(f)) {
+        return 0, fmt.Errorf("%s: fractional value %v cannot be used as integer", path, f)
+      }
+      return int64(f), nil
+    }
+  }
+
+  func parseUnsigned(path string, val interface{}, bits int) (uint64, error) {
+    switch n := val.(type) {
+    case json.Number:
+      raw := strings.TrimSpace(n.String())
+      if strings.HasPrefix(raw, "-") {
+        return 0, fmt.Errorf("%s: negative value %q cannot be used as unsigned integer", path, raw)
+      }
+      if strings.ContainsAny(raw, ".eE") {
+        return 0, fmt.Errorf("%s: fractional value %q cannot be used as unsigned integer", path, raw)
+      }
+      u, err := strconv.ParseUint(raw, 10, bits)
+      if err != nil {
+        return 0, fmt.Errorf("%s: unsigned integer out of range for %d-bit: %q", path, bits, raw)
+      }
+      return u, nil
+    case string:
+      raw := strings.TrimSpace(n)
+      if raw == "" {
+        return 0, errors.New(path + ": empty string cannot be used as unsigned integer")
+      }
+      if strings.HasPrefix(raw, "-") {
+        return 0, fmt.Errorf("%s: negative value %q cannot be used as unsigned integer", path, raw)
+      }
+      if strings.ContainsAny(raw, ".eE") {
+        return 0, fmt.Errorf("%s: fractional value %q cannot be used as unsigned integer", path, raw)
+      }
+      u, err := strconv.ParseUint(raw, 10, bits)
+      if err != nil {
+        return 0, fmt.Errorf("%s: unsigned integer out of range for %d-bit: %q", path, bits, raw)
+      }
+      return u, nil
+    default:
+      f, err := parseFloat(path, val, 64)
+      if err != nil {
+        return 0, err
+      }
+      if f < 0 {
+        return 0, fmt.Errorf("%s: negative value %v cannot be used as unsigned integer", path, f)
+      }
+      if f != float64(uint64(f)) {
+        return 0, fmt.Errorf("%s: fractional value %v cannot be used as unsigned integer", path, f)
+      }
+      return uint64(f), nil
     }
 }
 
 func main() {
+    defer func() {
+    if r := recover(); r != nil {
+      fmt.Printf("runtime error: %v\\n", r)
+    }
+    }()
+
   var payload interface{}
     d := json.NewDecoder(os.Stdin)
     d.UseNumber()
 
   if err := d.Decode(&payload); err != nil {
-    fmt.Println("")
+    fmt.Printf("runtime error: invalid input payload: %v\\n", err)
     return
   }
 
@@ -403,37 +677,62 @@ func main() {
     input = []interface{}{payload}
   }
 
-    fn := reflect.ValueOf(${functionName})
-    args := make([]reflect.Value, fn.Type().NumIn())
-    for i := range args {
-    if i >= len(input) {
-      args[i] = reflect.Zero(fn.Type().In(i))
-      continue
-    }
-        args[i] = convert(input[i], fn.Type().In(i))
-    }
+  fn := reflect.ValueOf(${functionName})
+  fnType := fn.Type()
 
-    result := fn.Call(args)[0].Interface()
-    if b, ok := result.(bool); ok {
-        if b {
-            fmt.Println("true")
-        } else {
-            fmt.Println("false")
-        }
-        return
-    }
+  if fnType.NumOut() != 1 {
+    fmt.Printf("runtime error: function must return exactly one value, got %d\\n", fnType.NumOut())
+    return
+  }
 
-    if s, ok := result.(string); ok {
-        fmt.Println(s)
-        return
-    }
+  if len(input) != fnType.NumIn() {
+    fmt.Printf("runtime error: expected %d args, got %d\\n", fnType.NumIn(), len(input))
+    return
+  }
 
-    if n, ok := result.(float64); ok {
-      fmt.Printf("%g\\n", n)
+  args := make([]reflect.Value, fnType.NumIn())
+  for i := range args {
+    converted, err := convert(fmt.Sprintf("args[%d]", i), input[i], fnType.In(i))
+    if err != nil {
+      fmt.Printf("runtime error: %v\\n", err)
       return
     }
+    args[i] = converted
+  }
 
-    out, _ := json.Marshal(result)
+  results := fn.Call(args)
+  if len(results) != 1 {
+    fmt.Printf("runtime error: function returned %d values; exactly one is required\\n", len(results))
+    return
+  }
+
+  result := results[0].Interface()
+  if result == nil {
+    fmt.Println("null")
+    return
+  }
+
+  if b, ok := result.(bool); ok {
+    if b {
+      fmt.Println("true")
+    } else {
+      fmt.Println("false")
+    }
+    return
+  }
+
+  if s, ok := result.(string); ok {
+    fmt.Println(s)
+    return
+  }
+
+  rv := reflect.ValueOf(result)
+  if rv.Kind() == reflect.Float32 || rv.Kind() == reflect.Float64 {
+    fmt.Printf("%g\\n", rv.Convert(reflect.TypeOf(float64(0))).Float())
+    return
+  }
+
+  out, _ := json.Marshal(result)
     fmt.Println(string(out))
 }
 `;
