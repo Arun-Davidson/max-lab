@@ -499,7 +499,7 @@ const buildJavaRunnerMethods = (callExpression: string, returnType: string): str
       ? `${callExpression};\n      return;`
       : `Object __result = ${callExpression};\n      System.out.println(__formatResult(__result, false));`;
 
-  return `
+  return String.raw`
   public static void main(String[] args) {
     try {
       ${invokeStatement}
